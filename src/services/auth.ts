@@ -81,9 +81,36 @@ export const authenticateWithTelegram = async (): Promise<User | null> => {
 export const getCurrentUser = async (): Promise<User | null> => {
   const token = localStorage.getItem('loopit_token');
   const userJson = localStorage.getItem('loopit_user');
-  
+
   if (!token || !userJson) return null;
-  
+
+  // Check JWT expiry without a library: decode payload and check exp claim
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Invalid JWT format');
+    // Base64url decode the payload (second segment)
+    const payloadB64 = parts[1]!.replace(/-/g, '+').replace(/_/g, '/');
+    const payloadJson = atob(payloadB64);
+    const payload = JSON.parse(payloadJson) as { exp?: number };
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    if (payload.exp && nowSec >= payload.exp) {
+      // Token expired — clear everything and force re-auth
+      console.warn('[Auth] JWT expired, clearing session.');
+      localStorage.removeItem('loopit_token');
+      localStorage.removeItem('loopit_user');
+      // Also clear module-level token in supabase client
+      setSupabaseToken(null);
+      return null;
+    }
+  } catch {
+    // Malformed token — treat as expired
+    localStorage.removeItem('loopit_token');
+    localStorage.removeItem('loopit_user');
+    setSupabaseToken(null);
+    return null;
+  }
+
   try {
     return JSON.parse(userJson) as User;
   } catch {

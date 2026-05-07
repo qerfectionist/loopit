@@ -179,7 +179,14 @@ Deno.serve(async (req: Request) => {
     } | null = null;
 
     if (initData === 'dev') {
-      // NOTE: only allowed in development — bot token will differ from prod
+      // DEV bypass — only allowed when ALLOW_DEV_AUTH=true is set in Edge Function secrets
+      const allowDev = Deno.env.get('ALLOW_DEV_AUTH');
+      if (allowDev !== 'true') {
+        return new Response(JSON.stringify({ error: 'Dev auth not allowed in this environment' }), {
+          status: 401,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        });
+      }
       tgUser = {
         id: 123456789,
         first_name: 'Developer',
