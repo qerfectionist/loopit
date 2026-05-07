@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Repeat2, CheckCircle2, Clock, XCircle, Loader2, Star } from 'lucide-react';
 import { Shell, PageHeader } from '@/components/layout';
-import { Card, Badge } from '@/components/ui';
+import { Card } from '@/components/ui';
 import { useAppStore } from '@/stores/appStore';
 import { useExchanges } from '@/hooks/useExchanges';
 import { formatRelativeTime } from '@/lib/utils';

@@ -1,32 +1,55 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { authenticateWithTelegram, getCurrentUser, updateUserProfile, getUserProfile } from '@/services/auth';
+import { supabase } from '@/lib/supabase';
+import {
+  authenticateWithTelegram,
+  getCurrentUser,
+  updateUserProfile,
+  getUserProfile,
+} from '@/services/auth';
 import { useAppStore } from '@/stores/appStore';
 import type { User } from '@/types';
 
-/** Authenticate and sync with Supabase on app start */
+// ---------------------------------------------------------------------------
+// useAuth
+// Main auth hook — called once at app root (AppRouter).
+// Flow:
+//   1. Try to restore session from localStorage (getCurrentUser)
+//   2. If no session → call Edge Function (authenticateWithTelegram)
+//   3. Listen to session changes via onAuthStateChange
+// ---------------------------------------------------------------------------
 export const useAuth = () => {
   const setCurrentUser = useAppStore((s) => s.setCurrentUser);
+  const queryClient = useQueryClient();
+
+  // No longer using GoTrue onAuthStateChange because we are using a custom JWT bypassed approach.
 
   return useQuery({
     queryKey: ['auth'],
     queryFn: async () => {
-      // Try to get existing user first
+      // Step 1: try to restore existing session from localStorage
       let user = await getCurrentUser();
+
       if (!user) {
-        // First time — create via Telegram data
+        // Step 2: no session — authenticate via Telegram initData → Edge Function
         user = await authenticateWithTelegram();
       }
+
       if (user) {
         setCurrentUser(user);
       }
+
       return user;
     },
-    staleTime: Infinity,
+    staleTime: Infinity,  // auth state doesn't go stale automatically
     retry: 2,
   });
 };
 
-/** Get another user's profile */
+// ---------------------------------------------------------------------------
+// useUserProfile
+// Fetch another user's public profile by UUID
+// ---------------------------------------------------------------------------
 export const useUserProfile = (userId: string | undefined) => {
   return useQuery({
     queryKey: ['user', userId],
@@ -35,13 +58,20 @@ export const useUserProfile = (userId: string | undefined) => {
   });
 };
 
-/** Update current user's profile */
+// ---------------------------------------------------------------------------
+// useUpdateProfile
+// Update current user's profile fields.
+// Works because auth.uid() = currentUser.id after setSession()
+// ---------------------------------------------------------------------------
 export const useUpdateProfile = () => {
   const queryClient = useQueryClient();
   const setCurrentUser = useAppStore((s) => s.setCurrentUser);
 
   return useMutation({
-    mutationFn: ({ userId, updates }: {
+    mutationFn: ({
+      userId,
+      updates,
+    }: {
       userId: string;
       updates: Partial<Pick<User, 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'bio' | 'location'>>;
     }) => updateUserProfile(userId, updates),

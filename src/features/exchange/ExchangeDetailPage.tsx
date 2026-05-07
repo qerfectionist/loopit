@@ -1,5 +1,4 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { ArrowLeft, CheckCircle2, Clock, XCircle, Repeat2, MapPin, Calendar, Loader2, Star } from 'lucide-react';
 import { Shell } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
@@ -34,19 +33,19 @@ export const ExchangeDetailPage = () => {
   const partnerConfirmed = isInitiator ? exchange.responder_confirmed : exchange.initiator_confirmed;
 
   const handleAccept = () => {
-    triggerHaptic('success');
+    triggerHaptic('light');
     acceptExchange.mutate(exchange.id);
   };
 
   const handleConfirm = () => {
     if (!currentUser) return;
-    triggerHaptic('success');
+    triggerHaptic('light');
     confirmExchange.mutate({ exchangeId: exchange.id, userId: currentUser.id });
   };
 
   const handleCancel = () => {
-    triggerHaptic('warning');
-    showConfirm('Cancel this exchange?', (confirmed) => {
+    triggerHaptic('medium');
+    showConfirm('Cancel this exchange?').then((confirmed) => {
       if (confirmed) {
         cancelExchange.mutate(exchange.id);
       }

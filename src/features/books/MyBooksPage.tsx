@@ -7,7 +7,7 @@ import { conditionLabels, conditionColors } from '@/lib/utils';
 import { triggerHaptic, showConfirm } from '@/lib/telegram';
 import { useAppStore } from '@/stores/appStore';
 import { useUserItems, useRemoveItem } from '@/hooks/useItems';
-import type { Item, ItemCondition } from '@/types';
+
 
 export const MyBooksPage = () => {
   const navigate = useNavigate();
@@ -17,12 +17,12 @@ export const MyBooksPage = () => {
   const removeItemMutation = useRemoveItem();
 
   const handleDelete = (id: string) => {
-    triggerHaptic('warning');
-    showConfirm('Are you sure you want to remove this book from your listings?', (confirmed) => {
+    triggerHaptic('medium');
+    showConfirm('Are you sure you want to remove this book from your listings?').then((confirmed) => {
       if (confirmed) {
         removeItemMutation.mutate(id, {
           onSuccess: () => {
-            triggerHaptic('success');
+            triggerHaptic('light');
           }
         });
       }

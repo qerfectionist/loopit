@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Plus, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shell } from '@/components/layout';
-import { Button, Input, Card } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import { triggerHaptic, triggerNotification } from '@/lib/telegram';
 import { useAppStore } from '@/stores/appStore';
 import { useCreateItem, useUploadImage } from '@/hooks/useItems';

@@ -70,7 +70,7 @@ export const SettingsPage = () => {
           ))}
 
           <Button 
-            variant="outline" 
+            variant="secondary" 
             className="w-full text-error border-error/20 bg-error/5 hover:bg-error/10 mt-4"
             icon={<LogOut size={18} />}
           >

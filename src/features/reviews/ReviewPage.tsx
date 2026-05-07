@@ -29,7 +29,7 @@ export const ReviewPage = () => {
 
   const handleSubmit = () => {
     if (!exchangeId || !currentUser?.id || !reviewedId || rating === 0) return;
-    triggerHaptic('success');
+    triggerHaptic('light');
 
     submitReview.mutate(
       {

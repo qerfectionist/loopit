@@ -1,105 +1,104 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, setSupabaseToken } from '@/lib/supabase';
 import { getTelegram } from '@/lib/telegram';
 import type { User } from '@/types';
 
-/**
- * Authenticate via Telegram WebApp initData.
- * Sends initData to Supabase Edge Function which verifies it
- * and returns a Supabase JWT token.
- *
- * For MVP without edge function, we do direct upsert with telegram_id.
- */
-const DEV_MOCK_USER = {
-  id: 123456789,
-  first_name: 'Developer',
-  last_name: 'Local',
-  username: 'dev_local',
-  photo_url: 'https://i.pravatar.cc/150?u=dev'
+// ---------------------------------------------------------------------------
+// Edge Function URL — built from VITE_SUPABASE_URL
+// ---------------------------------------------------------------------------
+const getEdgeFunctionUrl = () => {
+  const base = import.meta.env.VITE_SUPABASE_URL as string;
+  return `${base}/functions/v1/auth-telegram`;
 };
 
-/**
- * Authenticate via Telegram WebApp initData.
- * Sends initData to Supabase Edge Function which verifies it
- * and returns a Supabase JWT token.
- *
- * For MVP without edge function, we do direct upsert with telegram_id.
- */
+// ---------------------------------------------------------------------------
+// DEV: mock initData string when running outside Telegram
+// Edge Function treats the literal string "dev" as a bypass (local only)
+// ---------------------------------------------------------------------------
+const getInitData = (): string | null => {
+  const tg = getTelegram();
+  if (tg?.initData) return tg.initData;
+  if (import.meta.env.DEV) {
+    console.warn('[Auth] Not in Telegram. Using DEV mock initData.');
+    return 'dev';
+  }
+  return null;
+};
+
+// ---------------------------------------------------------------------------
+// authenticateWithTelegram
+// Calls the Edge Function, gets a custom JWT, sets it globally for Supabase.
+// Bypasses GoTrue (auth.users) completely.
+// ---------------------------------------------------------------------------
 export const authenticateWithTelegram = async (): Promise<User | null> => {
-  const tg = getTelegram();
-  let tgUser;
-
-  if (!tg?.initDataUnsafe?.user) {
-    if (import.meta.env.DEV) {
-      console.warn('[Auth] Not in Telegram. Using DEV mock user.');
-      tgUser = DEV_MOCK_USER;
-    } else {
-      console.warn('[Auth] Not running inside Telegram WebApp');
-      return null;
-    }
-  } else {
-    tgUser = tg.initDataUnsafe.user;
+  const initData = getInitData();
+  if (!initData) {
+    console.warn('[Auth] No initData available and not in DEV mode');
+    return null;
   }
 
-  // Upsert user in Supabase
-  const { data, error } = await supabase
-    .from('users')
-    .upsert(
-      {
-        telegram_id: tgUser.id,
-        username: tgUser.username ?? null,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name ?? null,
-        avatar_url: tgUser.photo_url ?? null,
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+  let response: Response;
+  try {
+    response = await fetch(getEdgeFunctionUrl(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
       },
-      { onConflict: 'telegram_id' }
-    )
-    .select()
-    .single();
-
-  if (error) {
-    console.error('[Auth] Failed to upsert user:', error);
+      body: JSON.stringify({ initData }),
+    });
+  } catch (err) {
+    console.error('[Auth] Network error calling auth-telegram:', err);
     return null;
   }
 
-  return data as User;
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    console.error('[Auth] auth-telegram returned error:', response.status, errorBody);
+    return null;
+  }
+
+  const data: { access_token: string; user: User } = await response.json();
+
+  if (!data.access_token || !data.user) {
+    console.error('[Auth] Invalid response from auth-telegram');
+    return null;
+  }
+
+  // Set the custom token directly for PostgREST
+  setSupabaseToken(data.access_token);
+  localStorage.setItem('loopit_user', JSON.stringify(data.user));
+
+  return data.user;
 };
 
-/**
- * Get current user from Supabase by telegram_id.
- * Used on app startup to check if user exists.
- */
+// ---------------------------------------------------------------------------
+// getCurrentUser
+// Reads the current user from localStorage if token exists.
+// ---------------------------------------------------------------------------
 export const getCurrentUser = async (): Promise<User | null> => {
-  const tg = getTelegram();
-  let tgUserId = tg?.initDataUnsafe?.user?.id;
-
-  if (!tgUserId && import.meta.env.DEV) {
-    tgUserId = DEV_MOCK_USER.id;
-  }
-
-  if (!tgUserId) {
+  const token = localStorage.getItem('loopit_token');
+  const userJson = localStorage.getItem('loopit_user');
+  
+  if (!token || !userJson) return null;
+  
+  try {
+    return JSON.parse(userJson) as User;
+  } catch {
     return null;
   }
-
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('telegram_id', tgUserId)
-    .single();
-
-  if (error) {
-    console.error('[Auth] Failed to get user:', error);
-    return null;
-  }
-
-  return data as User;
 };
 
-/**
- * Update user profile fields.
- */
+// ---------------------------------------------------------------------------
+// updateUserProfile
+// Updates allowed fields for the authenticated user.
+// auth.uid() = user.id is enforced by RLS policy "Auth users update own profile"
+// ---------------------------------------------------------------------------
 export const updateUserProfile = async (
   userId: string,
-  updates: Partial<Pick<User, 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'bio' | 'location'>>
+  updates: Partial<Pick<User, 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'bio' | 'location'>>,
 ): Promise<User | null> => {
   const { data, error } = await supabase
     .from('users')
@@ -116,9 +115,10 @@ export const updateUserProfile = async (
   return data as User;
 };
 
-/**
- * Get a user's public profile by id.
- */
+// ---------------------------------------------------------------------------
+// getUserProfile
+// Public profile lookup — allowed by "Anyone can read profiles" RLS policy
+// ---------------------------------------------------------------------------
 export const getUserProfile = async (userId: string): Promise<User | null> => {
   const { data, error } = await supabase
     .from('users')
