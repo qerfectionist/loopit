@@ -1,7 +1,7 @@
 # Loopit MVP — Статус
 
 _Последнее обновление: 2026-05-08_
-_Supabase project: gleoaovlbiltiwcoxpes (новый, после миграции)_
+_Supabase project: gleoaovlbiltiwcoxpes (новый, после миграции со сломанного odaandtvfdsezmrcxqpc)_
 _Деплой: https://loopit-peach.vercel.app_
 
 ---
@@ -11,76 +11,73 @@ _Деплой: https://loopit-peach.vercel.app_
 | Компонент | Статус | Подтверждение |
 |-----------|--------|---------------|
 | Telegram Mini App — открывается в Telegram | ✅ | Ручной тест |
-| Авторизация через `auth-telegram` Edge Function | ✅ | HMAC-SHA256 верификация Telegram initData |
+| Telegram auth через `auth-telegram` Edge Function | ✅ | HMAC-SHA256 верификация Telegram initData |
 | Custom JWT (HS256, sub = public.users.id) | ✅ | auth.uid() работает в RLS |
 | Supabase RLS — все таблицы защищены | ✅ | INSERT без JWT → 401 протестировано |
-| Item insert под JWT | ✅ | Ручной тест в приложении |
-| Item insert без JWT — заблокирован | ✅ | PowerShell тест → 401 |
-| Владелец видит свои неактивные книги | ✅ | RLS политика `Owner read own items` |
-| JWT expiry check на клиенте | ✅ | `src/services/auth.ts` декодирует exp |
-| Frontend deploy на Vercel (auto из master) | ✅ | loopit-peach.vercel.app |
-| Edge Function задеплоена в Supabase | ✅ | auth-telegram активна |
-| Загрузка фото книг (Supabase Storage upload) | ✅ | item-images bucket, RLS по user UUID |
-| npm run build | ✅ | 0 ошибок |
-| npm run lint | ✅ | 0 ошибок |
+| Item CRUD (create / read / update / delete) | ✅ | Ручной тест в приложении |
+| Supabase Storage upload | ✅ | item-images bucket, RLS по user UUID |
+| item-images bucket | ✅ | Public bucket, 5MB limit, jpeg/png/webp |
+| Photos saved in items.images[] | ✅ | URL в массиве после upload |
+| Vercel deploy (auto из master) | ✅ | loopit-peach.vercel.app |
+| Realtime chat (код + hooks) | ✅ | useRealtimeMessages, subscribeToMessages |
+| Chat navigation fix (conversation_id) | ✅ | Accept → автоматически открывает чат |
+| ALLOW_DEV_AUTH=false (production secured) | ✅ | dev bypass → 401 подтверждено |
 
 ---
 
-## ❌ Что НЕ реализовано
+## 🔒 Что НЕ трогать без чёткой причины
 
-| Фича | Приоритет |
-|------|-----------|
-| ~~Загрузка фото книг~~ | ~~Высокий~~ → ✅ Готово |
-| Realtime чат (WebSocket / Supabase Realtime) | Высокий |
-| Реальный поиск книг (полнотекстовый или по фильтрам) | Высокий |
-| Матчинг на основе wishlists | Средний |
-| Push-уведомления (Telegram Bot API) | Средний |
-| Нагрузочное тестирование | Низкий |
-| Локализация (мультиязычность) | Низкий |
+| Файл / Компонент | Причина |
+|-----------------|---------|
+| `src/lib/supabase.ts` | Кастомный JWT inject — критичен для auth |
+| `supabase/functions/auth-telegram/index.ts` | Auth логика, HMAC verification |
+| `supabase/migrations/003_fix_rls.sql` | RLS политики — трогать только осознанно |
+| `supabase/migrations/004_items_owner_select.sql` | RLS owner select |
+| `supabase/migrations/005_storage_item_images.sql` | Storage bucket + policies |
+| `uploadItemImage` в `src/services/items.ts` | Работает, не трогать |
+| Storage bucket настройки | Mime types, size limit настроены через Dashboard |
+| `.env` / `.env.local` | Credentials нового проекта |
+
+---
+
+## 📋 Следующие фичи (по приоритету)
+
+| Фича | Приоритет | Статус |
+|------|-----------|--------|
+| Реальный поиск книг (PostgreSQL FTS) | 🔴 Высокий | Не начато |
+| Wishlist-based matching | 🟠 Средний | Не начато |
+| Realtime chat (полный тест с 2 пользователями) | 🟠 Средний | Код готов, не протестировано |
+| Exchange flow polish | 🟡 Низкий | Не начато |
+| Profile trust / rating | 🟡 Низкий | Не начато |
 
 ---
 
 ## ⚠️ Известные ограничения
 
 | Ограничение | Описание |
-|-------------|---------|
-| `ALLOW_DEV_AUTH` | В production должен быть `false`. Если `true` — любой может авторизоваться как dev_local |
-| JWT срок — 7 дней | Нет auto-refresh. После истечения пользователь авторизуется повторно при следующем открытии |
-| Bundle size > 500KB | Vite предупреждает. Влияет на TTI в медленных сетях |
+|-------------|--------------------------------------------|
+| `ALLOW_DEV_AUTH=false` | ✅ Закрыто — dev bypass отключён в production |
+| JWT срок — 7 дней | Нет auto-refresh |
+| Bundle > 500KB | Vite предупреждает — нужен code splitting |
 | CORS `'*'` | Edge Function принимает запросы с любого Origin |
+| Поиск — client-side | ExplorePage фильтрует данные в памяти, не в БД |
 
 ---
 
-## 🏗️ Архитектура (кратко)
+## 🏗️ Архитектура
 
 ```
 Telegram initData
     → auth-telegram Edge Function (Supabase)
         → HMAC verify + upsert user
-        → sign custom JWT
+        → sign custom JWT (CUSTOM_JWT_SECRET = project JWT secret)
     → Frontend (Vercel)
         → store JWT in localStorage
-        → inject Bearer token in all Supabase requests
+        → inject Bearer token во все Supabase requests
     → Supabase PostgREST
         → verify JWT → auth.uid()
         → enforce RLS
+    → Supabase Storage
+        → RLS: upload только в свою папку (userId/*)
+        → Public read (CDN)
 ```
-
----
-
-## 📋 Честный статус
-
-> **Loopit MVP готов к закрытому тестированию.**
->
-> Авторизация, безопасность БД и базовые функции работают в реальном Telegram.
->
-> **Не готов к публичному масштабному запуску** — отсутствуют: загрузка фото, чат, реальный поиск, нагрузочное тестирование.
-
----
-
-## 🔒 Файлы, которые НЕ трогаем без объяснения причины
-
-- `supabase/functions/auth-telegram/index.ts` — auth логика
-- `src/lib/supabase.ts` — JWT inject
-- `supabase/migrations/003_fix_rls.sql` — RLS политики
-- `supabase/migrations/004_items_owner_select.sql` — RLS owner select
