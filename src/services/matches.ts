@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { sendTelegramNotify } from '@/lib/notify';
 import type { Match, MatchStatus } from '@/types';
 
 /** Get matches for a user (both user_a and user_b) */
@@ -100,12 +99,9 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
     console.error('[Matches] Failed to update match status:', matchErr);
   }
 
-  // 4. Notify the liker (user_a) that their match was accepted — fire and forget
-  const likerProfile = match.user_a_profile as { telegram_id?: number; first_name?: string } | null;
-  const acceptorName = (match.user_b_profile as { first_name?: string } | null)?.first_name ?? 'Someone';
-  if (likerProfile?.telegram_id) {
-    sendTelegramNotify(likerProfile.telegram_id, 'match_accepted', { name: acceptorName });
-  }
+  // NOTE: Telegram notification is now fired server-side by
+  //       the PostgreSQL trigger `trg_notify_match` via pg_net.
+  //       No frontend notify call needed.
 
   return conv.id;
 };
@@ -194,25 +190,9 @@ export const createLike = async (opts: {
       console.log('[Matches] 🎉 Reciprocal match! Auto-accepted + conversation upserted');
     }
 
-    // Notify both users of reciprocal match — fire and forget
-    if (ownerProfile?.telegram_id) {
-      sendTelegramNotify(ownerProfile.telegram_id, 'match_accepted', {
-        name: likerProfile?.first_name ?? 'Someone',
-      });
-    }
-    if (likerProfile?.telegram_id) {
-      sendTelegramNotify(likerProfile.telegram_id, 'match_accepted', {
-        name: ownerProfile?.first_name ?? 'Someone',
-      });
-    }
-  } else {
-    // One-sided like — notify the owner
-    if (ownerProfile?.telegram_id) {
-      sendTelegramNotify(ownerProfile.telegram_id, 'new_match', {
-        name: likerProfile?.first_name ?? 'Someone',
-      });
-    }
-  }
+  // NOTE: Telegram notifications (new_match / match_accepted) are now fired
+  //       server-side by the PostgreSQL trigger `trg_notify_match` via pg_net.
+  //       No frontend notify call needed here.
 
   return data;
 };

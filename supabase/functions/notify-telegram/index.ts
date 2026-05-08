@@ -1,3 +1,15 @@
+/**
+ * notify-telegram Edge Function
+ *
+ * ⚠️  INTERNAL ONLY — not callable from the frontend.
+ *
+ * Security model:
+ *  - Requires `x-internal-secret` header matching INTERNAL_NOTIFY_SECRET env var.
+ *  - Called exclusively by the PostgreSQL trigger `trg_notify_match` via pg_net.
+ *  - Frontend has NO knowledge of the secret and NO code path to call this.
+ *
+ * If the secret is missing or wrong → 403 Forbidden, no message sent.
+ */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
@@ -22,15 +34,27 @@ const MESSAGES: Record<NotifyPayload['event'], (data?: Record<string, string>) =
 };
 
 serve(async (req) => {
-  // CORS preflight
+  // CORS preflight — no wildcard, only needed for OPTIONS
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, content-type',
-      },
+      status: 204,
+      headers: { 'Access-Control-Allow-Origin': 'null' }, // block browsers
     });
   }
+
+  // ── Security gate ────────────────────────────────────────────────────────────
+  const internalSecret = Deno.env.get('INTERNAL_NOTIFY_SECRET');
+  if (!internalSecret) {
+    console.error('[notify-telegram] INTERNAL_NOTIFY_SECRET is not set');
+    return new Response('Service unavailable', { status: 503 });
+  }
+
+  const reqSecret = req.headers.get('x-internal-secret');
+  if (!reqSecret || reqSecret !== internalSecret) {
+    console.warn('[notify-telegram] Rejected: invalid or missing x-internal-secret');
+    return new Response('Forbidden', { status: 403 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
   if (!botToken) {
@@ -84,12 +108,12 @@ serve(async (req) => {
     console.error('[notify-telegram] Telegram API error:', tgBody);
     return new Response(JSON.stringify({ error: tgBody.description ?? 'Telegram error' }), {
       status: 502,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    headers: { 'Content-Type': 'application/json' },
   });
 });
