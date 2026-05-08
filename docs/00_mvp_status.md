@@ -1,8 +1,9 @@
 # Loopit MVP — Статус
 
 _Последнее обновление: 2026-05-08_
-_Supabase project: gleoaovlbiltiwcoxpes (новый, после миграции со сломанного odaandtvfdsezmrcxqpc)_
+_Supabase project: gleoaovlbiltiwcoxpes_
 _Деплой: https://loopit-peach.vercel.app_
+_E2E тест: **PASSED** (2026-05-08) — полный сценарий с двумя реальными Telegram пользователями_
 
 ---
 
