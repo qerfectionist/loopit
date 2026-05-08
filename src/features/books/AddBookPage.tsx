@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { compressImage } from '@/lib/compressImage';
+import { isBarcodeDetectorSupported } from '@/lib/isbn';
+import { ISBNScanner } from '@/components/ISBNScanner';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Plus, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, Plus, X, Loader2, ScanLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shell } from '@/components/layout';
 import { Button, Input } from '@/components/ui';
@@ -45,6 +47,8 @@ export const AddBookPage = () => {
   const currentUser = useAppStore((s) => s.currentUser);
   const createItemMutation = useCreateItem();
   const uploadImage = useUploadImage();
+  const [showScanner, setShowScanner] = useState(false);
+  const canScan = isBarcodeDetectorSupported();
 
   const canSubmit = title.trim().length > 0 && !!currentUser && !uploadingImage;
 
@@ -142,8 +146,24 @@ export const AddBookPage = () => {
     );
   };
 
+  const handleScanResult = (book: import('@/lib/isbn').BookInfo) => {
+    setTitle(book.title);
+    setAuthor(book.author);
+    setDescription(book.description);
+    setShowScanner(false);
+    triggerNotification('success');
+  };
+
   return (
     <Shell hideNav>
+      {/* ISBN Scanner overlay */}
+      {showScanner && (
+        <ISBNScanner
+          onResult={handleScanResult}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-border">
         <button
@@ -212,8 +232,23 @@ export const AddBookPage = () => {
           />
         </div>
 
-        <Input label="Title" placeholder="Book title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[13px] font-medium text-text-secondary">Title</label>
+            {canScan && (
+              <button
+                onClick={() => { triggerHaptic('light'); setShowScanner(true); }}
+                className="flex items-center gap-1 text-accent text-[13px] font-medium"
+              >
+                <ScanLine size={14} />
+                Scan ISBN
+              </button>
+            )}
+          </div>
+          <Input placeholder="Book title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
         <Input label="Author" placeholder="Author name" value={author} onChange={(e) => setAuthor(e.target.value)} />
+
 
         {/* Description */}
         <div className="flex flex-col gap-1.5">
