@@ -45,6 +45,7 @@ export const useCreateItem = () => {
       title: string;
       author?: string;
       description?: string;
+      isbn?: string;
       condition: ItemCondition;
       exchange_type: ExchangeType;
       price?: number;
