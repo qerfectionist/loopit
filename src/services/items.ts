@@ -1,7 +1,11 @@
 import { supabase } from '@/lib/supabase';
 import type { Item, ItemCategory, ExchangeType, ItemCondition } from '@/types';
 
-/** Fetch paginated list of active items with user data */
+/** Fetch paginated list of active items with user data.
+ *  When `search` is provided (≥2 chars), uses PostgreSQL FTS via search_items RPC
+ *  with ts_rank_cd ranking (title > author > description).
+ *  Falls back to regular created_at ordering for empty search.
+ */
 export const getItems = async (opts?: {
   search?: string;
   category?: ItemCategory;
@@ -11,6 +15,26 @@ export const getItems = async (opts?: {
 }): Promise<Item[]> => {
   const { search, category, condition, limit = 20, offset = 0 } = opts ?? {};
 
+  // --- FTS path: use RPC for ranked search ---
+  if (search && search.trim().length >= 2) {
+    const { data, error } = await supabase.rpc('search_items', {
+      p_query: search.trim(),
+      p_category: category ?? null,
+      p_limit: limit,
+      p_offset: offset,
+    });
+
+    if (error) {
+      console.error('[Items] FTS search failed:', error);
+      return [];
+    }
+
+    // Apply condition filter client-side (rare case, low cost after FTS)
+    const results = (data ?? []) as Item[];
+    return condition ? results.filter((i) => i.condition === condition) : results;
+  }
+
+  // --- Browse path: regular query (no search) ---
   let query = supabase
     .from('items')
     .select('*, user:users(*)')
@@ -18,17 +42,8 @@ export const getItems = async (opts?: {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (category) {
-    query = query.eq('category', category);
-  }
-
-  if (condition) {
-    query = query.eq('condition', condition);
-  }
-
-  if (search) {
-    query = query.or(`title.ilike.%${search}%,author.ilike.%${search}%`);
-  }
+  if (category) query = query.eq('category', category);
+  if (condition) query = query.eq('condition', condition);
 
   const { data, error } = await query;
 
@@ -39,6 +54,7 @@ export const getItems = async (opts?: {
 
   return data as Item[];
 };
+
 
 /** Get a single item by id with user data */
 export const getItemById = async (id: string): Promise<Item | null> => {
