@@ -111,6 +111,9 @@ interface TelegramWebApp {
   openLink(url: string, options?: { try_instant_view?: boolean }): void;
   openTelegramLink(url: string): void;
   requestContact(callback: (shared: boolean) => void): void;
+  isVerticalSwipesEnabled: boolean;
+  enableVerticalSwipes(): void;
+  disableVerticalSwipes(): void;
 }
 
 interface Window {

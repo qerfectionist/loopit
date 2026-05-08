@@ -12,6 +12,8 @@ export const initTelegram = () => {
     tg.expand();
     tg.setHeaderColor('#0A0A0A');
     tg.setBackgroundColor('#0A0A0A');
+    // Prevent Telegram swipe-to-close from conflicting with PullToRefresh
+    tg.disableVerticalSwipes?.();
   }
   return tg;
 };
