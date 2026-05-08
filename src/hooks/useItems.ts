@@ -1,6 +1,25 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getItems, getItemById, getUserItems, createItem, updateItem, removeItem, uploadItemImage, getItemsCount } from '@/services/items';
 import type { ItemCategory, ItemCondition, ExchangeType } from '@/types';
+
+const PAGE_SIZE = 24;
+
+/** Infinite-scrolling items with search/filter support */
+export const useInfiniteItems = (opts?: {
+  search?: string;
+  category?: ItemCategory;
+  condition?: ItemCondition;
+}) => {
+  return useInfiniteQuery({
+    queryKey: ['items-infinite', opts],
+    queryFn: ({ pageParam = 0 }) =>
+      getItems({ ...opts, limit: PAGE_SIZE, offset: pageParam as number }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < PAGE_SIZE ? undefined : allPages.length * PAGE_SIZE,
+    staleTime: 1000 * 60 * 2,
+  });
+};
 
 /** Fetch active items with optional search/filter */
 export const useItems = (opts?: {

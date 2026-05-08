@@ -186,3 +186,14 @@ body {
 .animate-slide-up {
   animation: slideUp var(--duration-slow) var(--ease-out) forwards;
 }
+
+/* Book card staggered entry (replaces framer-motion in ExplorePage) */
+@keyframes bookCardIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-book-card {
+  animation: bookCardIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { WishlistItem, ItemCategory } from '@/types';
+import type { WishlistItem, WishlistMatch, ItemCategory } from '@/types';
 
 /** Get user's wishlist */
 export const getWishlist = async (userId: string): Promise<WishlistItem[]> => {
@@ -92,4 +92,21 @@ export const getWishlistCount = async (userId: string): Promise<number> => {
 
   if (error) return 0;
   return count ?? 0;
+};
+
+/**
+ * Find two-way wishlist matches:
+ * A has items B wants AND B has items A wants.
+ * Calls the find_wishlist_matches Postgres RPC.
+ */
+export const findWishlistMatches = async (userId: string): Promise<WishlistMatch[]> => {
+  const { data, error } = await supabase
+    .rpc('find_wishlist_matches', { p_user_id: userId });
+
+  if (error) {
+    console.error('[Wishlist] Failed to find wishlist matches:', error);
+    return [];
+  }
+
+  return (data ?? []) as WishlistMatch[];
 };

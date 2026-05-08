@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import { OfflineBanner } from '@/components/ui';
 
 // Eager — first screen, must render immediately
 import { ExplorePage } from '@/features/explore/ExplorePage';
@@ -50,6 +51,8 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
 
 export const AppRouter = () => (
   <AuthWrapper>
+    {/* Global offline banner — visible across all routes */}
+    <OfflineBanner />
     <RouterProvider router={router} />
   </AuthWrapper>
 );

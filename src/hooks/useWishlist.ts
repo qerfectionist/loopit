@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getWishlist, addToWishlist, updateWishlistItem, removeFromWishlist } from '@/services/wishlist';
+import { getWishlist, addToWishlist, updateWishlistItem, removeFromWishlist, findWishlistMatches } from '@/services/wishlist';
 import type { ItemCategory } from '@/types';
 
 /** Fetch user's wishlist */
@@ -54,5 +54,19 @@ export const useRemoveFromWishlist = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wishlist'] });
     },
+  });
+};
+
+/**
+ * Discover two-way wishlist-based matches for the current user.
+ * Results are cached for 5 minutes to avoid hammering the DB.
+ */
+export const useWishlistMatches = (userId: string | undefined) => {
+  return useQuery({
+    queryKey: ['wishlist-matches', userId],
+    queryFn: () => findWishlistMatches(userId!),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // 5 min — these don't change often
+    gcTime: 10 * 60 * 1000,
   });
 };

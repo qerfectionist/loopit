@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Star, Settings, ChevronRight, Heart, ArrowUpRight, Loader2 } from 'lucide-react';
+import { BookOpen, Star, Settings, ChevronRight, Heart, ArrowUpRight, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Shell } from '@/components/layout';
 import { Avatar, Card, Button } from '@/components/ui';
 import { triggerHaptic } from '@/lib/telegram';
@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/appStore';
 import { useUserItems } from '@/hooks/useItems';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useExchanges } from '@/hooks/useExchanges';
+import { useAuth } from '@/hooks/useAuth';
 
 const MenuItem = ({ icon: Icon, label, value, onClick }: {
   icon: React.ElementType;
@@ -31,15 +32,48 @@ const MenuItem = ({ icon: Icon, label, value, onClick }: {
 export const ProfilePage = () => {
   const navigate = useNavigate();
   const currentUser = useAppStore((s) => s.currentUser);
+  const { isLoading: authLoading, isError: authError, refetch } = useAuth();
   const { data: items = [] } = useUserItems(currentUser?.id);
   const { data: wishlist = [] } = useWishlist(currentUser?.id);
   const { data: exchanges = [] } = useExchanges(currentUser?.id);
 
-  if (!currentUser) {
+  // Still authenticating
+  if (authLoading) {
     return (
       <Shell>
         <div className="flex justify-center items-center h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        </div>
+      </Shell>
+    );
+  }
+
+  // Auth failed or returned no user
+  if (!currentUser) {
+    return (
+      <Shell>
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4 px-6 text-center">
+          <div className="w-16 h-16 bg-bg-tertiary rounded-full flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-error" />
+          </div>
+          <h3 className="text-[17px] font-semibold">
+            {authError ? 'Ошибка входа' : 'Не авторизован'}
+          </h3>
+          <p className="text-[13px] text-text-secondary">
+            {authError
+              ? 'Не удалось войти через Telegram. Попробуйте ещё раз.'
+              : 'Откройте приложение через Telegram для авторизации.'}
+          </p>
+          {authError && (
+            <Button
+              variant="primary"
+              onClick={() => { triggerHaptic('medium'); refetch(); }}
+              className="mt-2"
+            >
+              <RefreshCw size={16} className="mr-2" />
+              Повторить
+            </Button>
+          )}
         </div>
       </Shell>
     );

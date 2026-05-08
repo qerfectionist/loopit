@@ -58,6 +58,21 @@ export interface WishlistItem {
   created_at: string;
 }
 
+/** Result from find_wishlist_matches RPC */
+export interface WishlistMatch {
+  other_user_id: string;
+  other_first_name: string;
+  other_last_name: string | null;
+  other_rating: number;
+  my_item_id: string;
+  my_item_title: string;
+  my_item_images: string[];
+  their_item_id: string;
+  their_item_title: string;
+  their_item_images: string[];
+  match_score: number;
+}
+
 export type MatchStatus = 'pending' | 'viewed' | 'accepted' | 'declined' | 'expired';
 
 export interface Match {

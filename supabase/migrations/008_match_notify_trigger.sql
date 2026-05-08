@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "extensions";
 -- Store the internal secret in a DB-level config parameter.
 -- This value must match INTERNAL_NOTIFY_SECRET in Edge Function secrets.
 -- ⚠️  Change this to a strong random value before running in production!
-ALTER DATABASE postgres SET "app.internal_notify_secret" = 'REPLACE_WITH_RANDOM_SECRET_MATCH_EDGE_FN_ENV';
+ALTER DATABASE postgres SET "app.internal_notify_secret" = 'lp-int-7f3a9b2e4d8c1f6a0e5b9d3c7a2f8e1d';
 
 -- ============================================================
 -- Trigger function: fires on INSERT / UPDATE to matches

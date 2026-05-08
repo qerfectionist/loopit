@@ -1,13 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, BookOpen, ArrowUpRight, Sparkles, Loader2, Heart, Filter, X, MapPin, ArrowUpDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Plus, BookOpen, ArrowUpRight, Sparkles, Heart, Filter, X, MapPin, ArrowUpDown, Loader2 } from 'lucide-react';
+
 import { Shell } from '@/components/layout';
-import { Card, Badge, Button } from '@/components/ui';
-import { Avatar } from '@/components/ui';
+import { Card, Badge, Button, Avatar, SkeletonCard, PullToRefresh } from '@/components/ui';
 import { triggerHaptic, triggerNotification } from '@/lib/telegram';
 import { conditionLabels, conditionColors } from '@/lib/utils';
-import { useItems, useUserItems, useItemsCount } from '@/hooks/useItems';
+import { useInfiniteItems, useUserItems, useItemsCount } from '@/hooks/useItems';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useMatches, useLikeItem } from '@/hooks/useMatches';
 import { useExchanges } from '@/hooks/useExchanges';
@@ -39,7 +38,7 @@ const GENRE_FILTERS = [
   { value: 'children', label: '🧒 Children' },
 ];
 
-/** Book cover colors based on title hash */
+/** Book cover gradient based on title hash */
 const getCoverGradient = (title: string) => {
   const hash = title.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const gradients = [
@@ -72,11 +71,7 @@ const BookCard = ({
   const hasImage = book.images && book.images.length > 0 && book.images[0];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-    >
+    <div className="animate-book-card" style={{ animationDelay: `${Math.min(index, 11) * 0.06}s` }}>
       <Card
         hover
         padding={false}
@@ -155,10 +150,9 @@ const BookCard = ({
           </div>
         </div>
       </Card>
-    </motion.div>
+    </div>
   );
 };
-
 
 
 export const ExplorePage = () => {
@@ -171,25 +165,39 @@ export const ExplorePage = () => {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const currentUser = useAppStore((s) => s.currentUser);
   const { coords } = useGeolocation(currentUser?.id);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Debounce search — prevents a DB call on every keystroke
   const debouncedSearch = useDebounce(searchQuery, 350);
 
-  const { data: items, isLoading } = useItems({
+  const {
+    data: infiniteData,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteItems({
     search: debouncedSearch || undefined,
     condition: conditionFilter !== 'all' ? conditionFilter : undefined,
   });
+
   const { data: myItems } = useUserItems(currentUser?.id);
   const { data: matches = [] } = useMatches(currentUser?.id);
   const { data: exchanges = [] } = useExchanges(currentUser?.id);
   const { data: totalItems = 0 } = useItemsCount();
   const likeItem = useLikeItem();
 
-  // Filter out current user's own items
-  const filteredBooks = useMemo(() => {
-    let mine = items?.filter((book) => book.user_id !== currentUser?.id) ?? [];
+  // Flatten all pages into one array
+  const allItems = useMemo(
+    () => (infiniteData?.pages ?? []).flat(),
+    [infiniteData],
+  );
 
-    // Genre filter (client-side via metadata JSONB)
+  // Filter out current user's items and apply client-side genre + distance sort
+  const filteredBooks = useMemo(() => {
+    let mine = allItems.filter((book) => book.user_id !== currentUser?.id);
+
     if (genreFilter) {
       mine = mine.filter((book) => {
         const g = (book.metadata as { genre?: string } | null)?.genre;
@@ -206,7 +214,7 @@ export const ExplorePage = () => {
       const dB = locB ? haversineKm(coords.lat, coords.lng, locB.lat, locB.lng) : Infinity;
       return dA - dB;
     });
-  }, [items, currentUser?.id, genreFilter, sortByDistance, coords]);
+  }, [allItems, currentUser?.id, genreFilter, sortByDistance, coords]);
 
   const getDistance = (book: Item): number | undefined => {
     if (!coords) return undefined;
@@ -218,6 +226,24 @@ export const ExplorePage = () => {
   // Stats
   const pendingMatches = matches.filter((m) => m.status === 'pending').length;
   const completedExchanges = exchanges.filter((e) => e.status === 'completed').length;
+
+  // Intersection Observer for infinite scroll sentinel
+  const handleIntersect = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(handleIntersect, { rootMargin: '200px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [handleIntersect]);
 
   const handleLike = (book: Item, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -231,6 +257,10 @@ export const ExplorePage = () => {
       ownerUserId: book.user_id,
       ownerItemId: book.id,
     });
+  };
+
+  const handleRefresh = async () => {
+    await refetch();
   };
 
   return (
@@ -250,9 +280,7 @@ export const ExplorePage = () => {
             variant="primary"
             size="sm"
             icon={<Plus size={16} />}
-            onClick={() => {
-              navigate('/add-book');
-            }}
+            onClick={() => navigate('/add-book')}
           >
             Add
           </Button>
@@ -296,62 +324,56 @@ export const ExplorePage = () => {
           </button>
         </div>
 
-        {/* Condition filter chips */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
+        {/* Filters */}
+        <div
+          className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
+            showFilters ? 'max-h-56 opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="flex gap-2 pt-2.5 overflow-x-auto scrollbar-hide">
+            {CONDITION_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => { triggerHaptic('light'); setConditionFilter(f.value); }}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
+                  conditionFilter === f.value
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-1.5 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => { triggerHaptic('light'); setGenreFilter(''); }}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
+                genreFilter === ''
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+              }`}
             >
-              <div className="flex gap-2 pt-2.5 overflow-x-auto scrollbar-hide">
-                {CONDITION_FILTERS.map((f) => (
-                  <button
-                    key={f.value}
-                    onClick={() => { triggerHaptic('light'); setConditionFilter(f.value); }}
-                    className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
-                      conditionFilter === f.value
-                        ? 'bg-accent text-white border-accent'
-                        : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-              {/* Genre filters */}
-              <div className="flex gap-2 pt-1.5 overflow-x-auto scrollbar-hide">
-                <button
-                  onClick={() => { triggerHaptic('light'); setGenreFilter(''); }}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
-                    genreFilter === ''
-                      ? 'bg-accent text-white border-accent'
-                      : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                  }`}
-                >
-                  All Genres
-                </button>
-                {GENRE_FILTERS.map((g) => (
-                  <button
-                    key={g.value}
-                    onClick={() => { triggerHaptic('light'); setGenreFilter(genreFilter === g.value ? '' : g.value); }}
-                    className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
-                      genreFilter === g.value
-                        ? 'bg-accent text-white border-accent'
-                        : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                    }`}
-                  >
-                    {g.label}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              All Genres
+            </button>
+            {GENRE_FILTERS.map((g) => (
+              <button
+                key={g.value}
+                onClick={() => { triggerHaptic('light'); setGenreFilter(genreFilter === g.value ? '' : g.value); }}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
+                  genreFilter === g.value
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                }`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Quick stats — REAL data */}
+      {/* Quick stats */}
       <div className="px-5 pb-3">
         <div className="flex gap-2">
           <div
@@ -384,37 +406,43 @@ export const ExplorePage = () => {
         </div>
       </div>
 
-      {/* Book grid */}
-      <div className="px-5 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[16px] font-semibold">
-            {searchQuery ? `Results for "${searchQuery}"` : sortByDistance ? 'Nearest to you' : 'Near you'}
-          </h2>
-          <div className="flex items-center gap-2">
-            {coords && (
-              <button
-                onClick={() => { triggerHaptic('light'); setSortByDistance((v) => !v); }}
-                className={`flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-lg border transition-colors ${
-                  sortByDistance
-                    ? 'bg-accent/10 text-accent border-accent/30'
-                    : 'bg-bg-secondary text-text-muted border-border'
-                }`}
-              >
-                <ArrowUpDown size={12} />
-                {sortByDistance ? 'Nearest' : 'Recent'}
-              </button>
-            )}
-            <span className="text-[13px] text-text-muted">{filteredBooks.length} books</span>
+      {/* Book grid — wrapped in PullToRefresh */}
+      <PullToRefresh onRefresh={handleRefresh}>
+        <div className="px-5 pb-3">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[16px] font-semibold">
+              {searchQuery ? `Results for "${searchQuery}"` : sortByDistance ? 'Nearest to you' : 'Near you'}
+            </h2>
+            <div className="flex items-center gap-2">
+              {coords && (
+                <button
+                  onClick={() => { triggerHaptic('light'); setSortByDistance((v) => !v); }}
+                  className={`flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-lg border transition-colors ${
+                    sortByDistance
+                      ? 'bg-accent/10 text-accent border-accent/30'
+                      : 'bg-bg-secondary text-text-muted border-border'
+                  }`}
+                >
+                  <ArrowUpDown size={12} />
+                  {sortByDistance ? 'Nearest' : 'Recent'}
+                </button>
+              )}
+              <span className="text-[13px] text-text-muted">{filteredBooks.length} books</span>
+            </div>
           </div>
-        </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" />
-          </div>
-        ) : (
-          <>
-            <AnimatePresence mode="popLayout">
+          {/* Skeleton loading grid */}
+          {isLoading && (
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          )}
+
+          {/* Loaded books grid */}
+          {!isLoading && (
+            <>
               <div className="grid grid-cols-2 gap-3">
                 {filteredBooks.map((book, index) => (
                   <BookCard
@@ -428,33 +456,44 @@ export const ExplorePage = () => {
                   />
                 ))}
               </div>
-            </AnimatePresence>
 
-            {filteredBooks.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <BookOpen size={48} className="text-text-muted mb-3" />
-                <p className="text-[15px] font-medium text-text-secondary">No books found</p>
-                <p className="text-[13px] text-text-muted mt-1">
-                  {searchQuery
-                    ? 'Try a different search term'
-                    : 'Be the first to add a book!'}
-                </p>
-                {!searchQuery && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={<Plus size={16} />}
-                    className="mt-4"
-                    onClick={() => navigate('/add-book')}
-                  >
-                    Add a Book
-                  </Button>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+              {/* Empty state */}
+              {filteredBooks.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <BookOpen size={48} className="text-text-muted mb-3" />
+                  <p className="text-[15px] font-medium text-text-secondary">No books found</p>
+                  <p className="text-[13px] text-text-muted mt-1">
+                    {searchQuery
+                      ? 'Try a different search term'
+                      : 'Be the first to add a book!'}
+                  </p>
+                  {!searchQuery && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={<Plus size={16} />}
+                      className="mt-4"
+                      onClick={() => navigate('/add-book')}
+                    >
+                      Add a Book
+                    </Button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="h-4" />
+
+          {/* Loading more indicator */}
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-4">
+              <Loader2 size={20} className="animate-spin text-accent" />
+            </div>
+          )}
+        </div>
+      </PullToRefresh>
     </Shell>
   );
 };

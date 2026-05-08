@@ -11,6 +11,26 @@ const getEdgeFunctionUrl = () => {
 };
 
 // ---------------------------------------------------------------------------
+// DEV mock user — used when Edge Function is unavailable in browser testing
+// ---------------------------------------------------------------------------
+const DEV_MOCK_USER: User = {
+  id: '00000000-0000-0000-0000-000000000001',
+  telegram_id: 123456789,
+  username: 'dev_local',
+  first_name: 'Developer',
+  last_name: 'Local',
+  avatar_url: null,
+  bio: 'Local development account',
+  rating: 5.0,
+  total_exchanges: 0,
+  location: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+const DEV_MOCK_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6OTk5OTk5OTk5OX0.mock';
+
+// ---------------------------------------------------------------------------
 // DEV: mock initData string when running outside Telegram
 // Edge Function treats the literal string "dev" as a bypass (local only)
 // ---------------------------------------------------------------------------
@@ -28,6 +48,7 @@ const getInitData = (): string | null => {
 // authenticateWithTelegram
 // Calls the Edge Function, gets a custom JWT, sets it globally for Supabase.
 // Bypasses GoTrue (auth.users) completely.
+// In DEV mode, falls back to a mock user if Edge Function is unavailable.
 // ---------------------------------------------------------------------------
 export const authenticateWithTelegram = async (): Promise<User | null> => {
   const initData = getInitData();
@@ -51,12 +72,22 @@ export const authenticateWithTelegram = async (): Promise<User | null> => {
     });
   } catch (err) {
     console.error('[Auth] Network error calling auth-telegram:', err);
+    // DEV fallback: use mock user so UI is testable without Edge Function
+    if (import.meta.env.DEV) {
+      console.warn('[Auth] Using DEV mock user (Edge Function unreachable)');
+      return applyDevMock();
+    }
     return null;
   }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
     console.error('[Auth] auth-telegram returned error:', response.status, errorBody);
+    // DEV fallback: allow browser testing even if Edge Function returns 401/500
+    if (import.meta.env.DEV) {
+      console.warn('[Auth] Using DEV mock user (Edge Function error:', response.status, ')');
+      return applyDevMock();
+    }
     return null;
   }
 
@@ -64,14 +95,24 @@ export const authenticateWithTelegram = async (): Promise<User | null> => {
 
   if (!data.access_token || !data.user) {
     console.error('[Auth] Invalid response from auth-telegram');
+    if (import.meta.env.DEV) return applyDevMock();
     return null;
   }
 
   // Set the custom token directly for PostgREST
   setSupabaseToken(data.access_token);
+  localStorage.setItem('loopit_token', data.access_token);
   localStorage.setItem('loopit_user', JSON.stringify(data.user));
 
   return data.user;
+};
+
+/** Apply DEV mock user into localStorage + supabase client */
+const applyDevMock = (): User => {
+  setSupabaseToken(DEV_MOCK_TOKEN);
+  localStorage.setItem('loopit_token', DEV_MOCK_TOKEN);
+  localStorage.setItem('loopit_user', JSON.stringify(DEV_MOCK_USER));
+  return DEV_MOCK_USER;
 };
 
 // ---------------------------------------------------------------------------
