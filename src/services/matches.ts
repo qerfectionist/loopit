@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { sendTelegramNotify } from '@/lib/notify';
 import type { Match, MatchStatus } from '@/types';
 
 /** Get matches for a user (both user_a and user_b) */
@@ -62,10 +63,10 @@ export const getUnreadMatchesCount = async (userId: string): Promise<number> => 
 
 /** Accept a match — creates a conversation so users can chat */
 export const acceptMatch = async (matchId: string): Promise<string | null> => {
-  // 1. Fetch match to know participants
+  // 1. Fetch match + participant names to notify the liker
   const { data: match, error: fetchErr } = await supabase
     .from('matches')
-    .select('user_a, user_b')
+    .select('user_a, user_b, user_a_profile:users!matches_user_a_fkey(telegram_id, first_name), user_b_profile:users!matches_user_b_fkey(first_name)')
     .eq('id', matchId)
     .single();
 
@@ -75,7 +76,6 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
   }
 
   // 2. Upsert conversation FIRST — idempotent, safe to retry
-  //    If this fails, we return null and match status stays unchanged.
   const { data: conv, error: convErr } = await supabase
     .from('conversations')
     .upsert(
@@ -87,10 +87,10 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
 
   if (convErr || !conv) {
     console.error('[Matches] Failed to upsert conversation:', convErr);
-    return null; // match status NOT changed — safe to retry
+    return null;
   }
 
-  // 3. Only after conversation exists — mark match as accepted
+  // 3. Mark match as accepted
   const { error: matchErr } = await supabase
     .from('matches')
     .update({ status: 'accepted' })
@@ -98,8 +98,13 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
 
   if (matchErr) {
     console.error('[Matches] Failed to update match status:', matchErr);
-    // Conversation already created — return its id anyway so user can chat
-    // Next call will be idempotent (upsert)
+  }
+
+  // 4. Notify the liker (user_a) that their match was accepted — fire and forget
+  const likerProfile = match.user_a_profile as { telegram_id?: number; first_name?: string } | null;
+  const acceptorName = (match.user_b_profile as { first_name?: string } | null)?.first_name ?? 'Someone';
+  if (likerProfile?.telegram_id) {
+    sendTelegramNotify(likerProfile.telegram_id, 'match_accepted', { name: acceptorName });
   }
 
   return conv.id;
@@ -157,6 +162,15 @@ export const createLike = async (opts: {
     .in('status', ['pending', 'viewed'])
     .maybeSingle();
 
+  // Fetch both profiles for notifications
+  const { data: profiles } = await supabase
+    .from('users')
+    .select('id, telegram_id, first_name')
+    .in('id', [likerUserId, ownerUserId]);
+
+  const likerProfile = profiles?.find((u) => u.id === likerUserId);
+  const ownerProfile = profiles?.find((u) => u.id === ownerUserId);
+
   if (reciprocal && data) {
     // Auto-accept both matches
     await supabase
@@ -178,6 +192,25 @@ export const createLike = async (opts: {
       console.error('[Matches] Reciprocal conv upsert failed:', convErr);
     } else {
       console.log('[Matches] 🎉 Reciprocal match! Auto-accepted + conversation upserted');
+    }
+
+    // Notify both users of reciprocal match — fire and forget
+    if (ownerProfile?.telegram_id) {
+      sendTelegramNotify(ownerProfile.telegram_id, 'match_accepted', {
+        name: likerProfile?.first_name ?? 'Someone',
+      });
+    }
+    if (likerProfile?.telegram_id) {
+      sendTelegramNotify(likerProfile.telegram_id, 'match_accepted', {
+        name: ownerProfile?.first_name ?? 'Someone',
+      });
+    }
+  } else {
+    // One-sided like — notify the owner
+    if (ownerProfile?.telegram_id) {
+      sendTelegramNotify(ownerProfile.telegram_id, 'new_match', {
+        name: likerProfile?.first_name ?? 'Someone',
+      });
     }
   }
 
