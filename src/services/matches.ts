@@ -189,6 +189,7 @@ export const createLike = async (opts: {
     } else {
       console.log('[Matches] 🎉 Reciprocal match! Auto-accepted + conversation upserted');
     }
+  }
 
   // NOTE: Telegram notifications (new_match / match_accepted) are now fired
   //       server-side by the PostgreSQL trigger `trg_notify_match` via pg_net.

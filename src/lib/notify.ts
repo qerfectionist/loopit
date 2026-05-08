@@ -11,16 +11,8 @@
  * Do NOT add new callers of this function. Add notification logic to:
  *   supabase/migrations/008_match_notify_trigger.sql
  */
-export const sendTelegramNotify = (
-  _telegramId: number,
-  _event: string,
-  _data?: Record<string, string>
-): void => {
-  // NOTE: intentional no-op. Notifications are server-side only.
-  if (import.meta.env.DEV) {
-    console.warn(
-      '[notify] sendTelegramNotify is deprecated and disabled. ' +
-      'Notifications fire from DB trigger trg_notify_match.'
-    );
-  }
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const sendTelegramNotify = (..._args: unknown[]): void => {
+  // Intentional no-op — notifications fire from DB trigger trg_notify_match.
 };
