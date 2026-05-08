@@ -123,3 +123,25 @@ export const cancelExchange = async (exchangeId: string): Promise<boolean> => {
 
   return true;
 };
+
+/** Update meetup location and time for an accepted exchange */
+export const updateMeetup = async (
+  exchangeId: string,
+  place: string,
+  time: string // ISO datetime string
+): Promise<boolean> => {
+  const { error } = await supabase
+    .from('exchanges')
+    .update({
+      meetup_location: { lat: 0, lng: 0, city: place },
+      meetup_time: time,
+    })
+    .eq('id', exchangeId);
+
+  if (error) {
+    console.error('[Exchanges] Update meetup failed:', error);
+    return false;
+  }
+
+  return true;
+};

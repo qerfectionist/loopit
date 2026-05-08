@@ -6,6 +6,7 @@ import {
   acceptExchange,
   confirmExchange,
   cancelExchange,
+  updateMeetup,
 } from '@/services/exchanges';
 
 /** Fetch all exchanges for a user */
@@ -75,6 +76,22 @@ export const useCancelExchange = () => {
     mutationFn: (exchangeId: string) => cancelExchange(exchangeId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchanges'] });
+      queryClient.invalidateQueries({ queryKey: ['exchange'] });
+    },
+  });
+};
+
+/** Update meetup place + time */
+export const useUpdateMeetup = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ exchangeId, place, time }: {
+      exchangeId: string;
+      place: string;
+      time: string;
+    }) => updateMeetup(exchangeId, place, time),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchange'] });
     },
   });
