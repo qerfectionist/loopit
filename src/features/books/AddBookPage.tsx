@@ -22,7 +22,7 @@ const EXCHANGE_TYPES: { value: ExchangeType; label: string; desc: string }[] = [
   { value: 'both', label: 'Either', desc: 'Trade or sell' },
 ];
 
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 3;
 
 export const AddBookPage = () => {
   const navigate = useNavigate();
@@ -34,6 +34,7 @@ export const AddBookPage = () => {
   const [exchangeType, setExchangeType] = useState<ExchangeType>('exchange');
   const [price, setPrice] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Image state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -94,11 +95,16 @@ export const AddBookPage = () => {
       );
 
       try {
-        const results = await Promise.all(uploadPromises);
-        imageUrls = results.filter((url): url is string => url !== null);
+        imageUrls = await Promise.all(uploadPromises);
+        setUploadError(null);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Image upload failed';
         console.error('[AddBook] Image upload failed:', err);
+        setUploadError(msg);
         triggerNotification('error');
+        setUploadingImage(false);
+        setLoading(false);
+        return; // abort — don't create item with broken images
       }
       setUploadingImage(false);
     }
@@ -187,10 +193,13 @@ export const AddBookPage = () => {
               </button>
             )}
           </div>
+          {uploadError && (
+            <p className="text-[12px] text-error mt-1">{uploadError}</p>
+          )}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             multiple
             onChange={handleFileChange}
             className="hidden"

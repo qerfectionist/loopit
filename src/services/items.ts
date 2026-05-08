@@ -144,17 +144,32 @@ export const removeItem = async (id: string): Promise<boolean> => {
 export const uploadItemImage = async (
   userId: string,
   file: File
-): Promise<string | null> => {
-  const ext = file.name.split('.').pop();
-  const fileName = `${userId}/${Date.now()}.${ext}`;
+): Promise<string> => {
+  // --- Validation (client-side, before any network request) ---
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-  const { error } = await supabase.storage
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error(`Unsupported file type: ${file.type}. Only JPG, PNG and WebP are allowed.`);
+  }
+
+  if (file.size > MAX_SIZE_BYTES) {
+    throw new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 5 MB.`);
+  }
+
+  // --- Upload ---
+  const ext = file.type === 'image/webp' ? 'webp'
+    : file.type === 'image/png' ? 'png'
+    : 'jpg';
+  const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
     .from('item-images')
     .upload(fileName, file, { cacheControl: '3600', upsert: false });
 
-  if (error) {
-    console.error('[Items] Failed to upload image:', error);
-    return null;
+  if (uploadError) {
+    console.error('[Items] Failed to upload image:', uploadError);
+    throw new Error(uploadError.message);
   }
 
   const { data: urlData } = supabase.storage
