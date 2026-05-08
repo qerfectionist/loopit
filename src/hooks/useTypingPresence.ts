@@ -22,32 +22,59 @@ export const useTypingPresence = (
   useEffect(() => {
     if (!conversationId || !myUserId) return;
 
-    const channel = supabase.channel(`typing:${conversationId}`, {
-      config: { presence: { key: myUserId } },
-    });
+    let cancelled = false;
 
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<PresencePayload>();
-        // Find partner (anyone who is not me)
-        const partnerTyping = Object.entries(state)
-          .filter(([key]) => key !== myUserId)
-          .some(([, presences]) =>
-            presences.some((p) => p.typing === true)
-          );
-        onPartnerTyping(partnerTyping);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ typing: false, user_id: myUserId });
-        }
+    const run = async () => {
+      // NOTE: Client-side participant guard.
+      // RLS is the primary security boundary; this prevents unnecessary
+      // channel subscriptions for non-participants who know the conversation ID.
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .or(`user_a.eq.${myUserId},user_b.eq.${myUserId}`)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (!conv) {
+        // Not a participant — abort silently
+        console.warn('[Typing] Not a participant of conversation', conversationId);
+        onPartnerTyping(false);
+        return;
+      }
+
+      const channel = supabase.channel(`typing:${conversationId}`, {
+        config: { presence: { key: myUserId } },
       });
 
-    channelRef.current = channel;
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState<PresencePayload>();
+          // Find partner (anyone who is not me)
+          const partnerTyping = Object.entries(state)
+            .filter(([key]) => key !== myUserId)
+            .some(([, presences]) =>
+              presences.some((p) => p.typing === true)
+            );
+          onPartnerTyping(partnerTyping);
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({ typing: false, user_id: myUserId });
+          }
+        });
+
+      channelRef.current = channel;
+    };
+
+    void run();
 
     return () => {
+      cancelled = true;
       if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
-      supabase.removeChannel(channel);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, myUserId]);

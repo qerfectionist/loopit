@@ -95,6 +95,7 @@ export const createItem = async (item: {
   title: string;
   author?: string;
   description?: string;
+  isbn?: string;
   condition: ItemCondition;
   exchange_type: ExchangeType;
   price?: number;
@@ -109,6 +110,7 @@ export const createItem = async (item: {
       title: item.title,
       author: item.author ?? null,
       description: item.description ?? null,
+      isbn: item.isbn ?? null,
       condition: item.condition,
       exchange_type: item.exchange_type,
       price: item.price ?? null,

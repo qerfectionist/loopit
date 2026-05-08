@@ -56,6 +56,7 @@ export const AddBookPage = () => {
   const [genre, setGenre] = useState<BookGenre | ''>('');
   const [loading, setLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isbn, setIsbn] = useState('');
 
   // Image state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -145,6 +146,7 @@ export const AddBookPage = () => {
         title: title.trim(),
         author: author.trim() || undefined,
         description: description.trim() || undefined,
+        isbn: isbn || undefined,
         condition,
         exchange_type: exchangeType,
         price: (exchangeType === 'sell' || exchangeType === 'both') && price ? parseFloat(price) : undefined,
@@ -169,6 +171,7 @@ export const AddBookPage = () => {
     setTitle(book.title);
     setAuthor(book.author);
     setDescription(book.description);
+    setIsbn(book.isbn);
     setShowScanner(false);
     triggerNotification('success');
   };
