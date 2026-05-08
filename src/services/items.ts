@@ -100,6 +100,7 @@ export const createItem = async (item: {
   price?: number;
   images?: string[];
   category?: ItemCategory;
+  metadata?: Record<string, unknown>;
 }): Promise<Item | null> => {
   const { data, error } = await supabase
     .from('items')
@@ -114,6 +115,7 @@ export const createItem = async (item: {
       images: item.images ?? [],
       category: item.category ?? 'book',
       status: 'active',
+      metadata: item.metadata ?? null,
     })
     .select('*, user:users(*)')
     .single();

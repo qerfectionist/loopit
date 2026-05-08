@@ -25,6 +25,23 @@ const EXCHANGE_TYPES: { value: ExchangeType; label: string; desc: string }[] = [
   { value: 'both', label: 'Either', desc: 'Trade or sell' },
 ];
 
+const GENRES = [
+  { value: 'fiction', label: '📖 Fiction' },
+  { value: 'non-fiction', label: '📚 Non-Fiction' },
+  { value: 'sci-fi', label: '🚀 Sci-Fi' },
+  { value: 'fantasy', label: '🧙 Fantasy' },
+  { value: 'mystery', label: '🔍 Mystery' },
+  { value: 'romance', label: '💕 Romance' },
+  { value: 'thriller', label: '😱 Thriller' },
+  { value: 'biography', label: '👤 Biography' },
+  { value: 'history', label: '🏛️ History' },
+  { value: 'science', label: '🔬 Science' },
+  { value: 'self-help', label: '💡 Self-Help' },
+  { value: 'children', label: '🧒 Children' },
+] as const;
+
+export type BookGenre = typeof GENRES[number]['value'];
+
 const MAX_IMAGES = 3;
 
 export const AddBookPage = () => {
@@ -36,6 +53,7 @@ export const AddBookPage = () => {
   const [condition, setCondition] = useState<ItemCondition>('good');
   const [exchangeType, setExchangeType] = useState<ExchangeType>('exchange');
   const [price, setPrice] = useState('');
+  const [genre, setGenre] = useState<BookGenre | ''>('');
   const [loading, setLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -131,6 +149,7 @@ export const AddBookPage = () => {
         exchange_type: exchangeType,
         price: (exchangeType === 'sell' || exchangeType === 'both') && price ? parseFloat(price) : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
+        metadata: genre ? { genre } : undefined,
       },
       {
         onSuccess: () => {
@@ -260,6 +279,28 @@ export const AddBookPage = () => {
             rows={3}
             className="w-full px-3.5 py-3 rounded-xl text-[15px] bg-bg-tertiary text-text-primary placeholder-text-muted border border-border focus:border-accent outline-none transition-colors resize-none"
           />
+        </div>
+
+        {/* Genre selector */}
+        <div>
+          <label className="text-[13px] font-medium text-text-secondary mb-2 block">
+            Genre <span className="text-text-muted">(optional)</span>
+          </label>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            {GENRES.map((g) => (
+              <button
+                key={g.value}
+                onClick={() => { triggerHaptic('light'); setGenre(genre === g.value ? '' : g.value); }}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors flex-shrink-0 ${
+                  genre === g.value
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                }`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Condition selector */}

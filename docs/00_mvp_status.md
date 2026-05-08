@@ -30,6 +30,9 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 | **Telegram Bot уведомления** | ✅ | notify-telegram Edge Function: new_match, match_accepted |
 | **ISBN сканер** | ✅ | BarcodeDetector API + OpenLibrary автозаполнение |
 | **Геолокация** | ✅ | Дистанция на карточках, сорт Nearest, users.location JSONB |
+| **Sentry error tracking** | ✅ | DSN в Vercel env, ErrorBoundary, production-only |
+| **Supabase Presence** | ✅ | «Печатает...» — три точки, animate-bounce, auto-stop 3s |
+| **Optimistic UI** | ✅ | Сообщения появляются мгновенно, rollback при ошибке |
 
 ---
 
@@ -55,10 +58,11 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 
 | Фича | Приоритет | Статус |
 |------|-----------|--------|
-| Wishlist-based matching | 🟠 Средний | Не начато |
+| Genre / Smart фильтры | 🟠 Средний | metadata JSONB готов, UI нет |
+| Exchange meetup UI | 🟠 Средний | meetup_location в схеме, UI нет |
 | Profile trust / rating UI | 🟡 Низкий | Схема есть, UI нет |
-| Exchange flow polish | 🟡 Низкий | Базовый flow работает |
-| Code splitting / bundle optimization | 🟢 Низкий | Bundle 784KB — нужен lazy load |
+| Code splitting / bundle | 🟢 Низкий | Bundle 869KB — нужен lazy import |
+| pgvector / семантический поиск | 🔵 Будущее | Когда будет 1000+ книг |
 
 ---
 

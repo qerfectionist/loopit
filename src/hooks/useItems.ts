@@ -50,6 +50,7 @@ export const useCreateItem = () => {
       price?: number;
       images?: string[];
       category?: ItemCategory;
+      metadata?: Record<string, unknown>;
     }) => createItem(item),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });

@@ -24,6 +24,21 @@ const CONDITION_FILTERS: { value: ItemCondition | 'all'; label: string }[] = [
   { value: 'fair', label: '📙 Fair' },
 ];
 
+const GENRE_FILTERS = [
+  { value: 'fiction', label: '📖 Fiction' },
+  { value: 'non-fiction', label: '📚 Non-Fiction' },
+  { value: 'sci-fi', label: '🚀 Sci-Fi' },
+  { value: 'fantasy', label: '🧙 Fantasy' },
+  { value: 'mystery', label: '🔍 Mystery' },
+  { value: 'romance', label: '💕 Romance' },
+  { value: 'thriller', label: '😱 Thriller' },
+  { value: 'biography', label: '👤 Biography' },
+  { value: 'history', label: '🏛️ History' },
+  { value: 'science', label: '🔬 Science' },
+  { value: 'self-help', label: '💡 Self-Help' },
+  { value: 'children', label: '🧒 Children' },
+];
+
 /** Book cover colors based on title hash */
 const getCoverGradient = (title: string) => {
   const hash = title.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -151,6 +166,7 @@ export const ExplorePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [conditionFilter, setConditionFilter] = useState<ItemCondition | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [genreFilter, setGenreFilter] = useState('');
   const [sortByDistance, setSortByDistance] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const currentUser = useAppStore((s) => s.currentUser);
@@ -171,11 +187,18 @@ export const ExplorePage = () => {
 
   // Filter out current user's own items
   const filteredBooks = useMemo(() => {
-    const mine = items?.filter((book) => book.user_id !== currentUser?.id) ?? [];
+    let mine = items?.filter((book) => book.user_id !== currentUser?.id) ?? [];
+
+    // Genre filter (client-side via metadata JSONB)
+    if (genreFilter) {
+      mine = mine.filter((book) => {
+        const g = (book.metadata as { genre?: string } | null)?.genre;
+        return g === genreFilter;
+      });
+    }
 
     if (!sortByDistance || !coords) return mine;
 
-    // Sort by distance when coords available
     return [...mine].sort((a, b) => {
       const locA = a.user?.location as { lat: number; lng: number } | null;
       const locB = b.user?.location as { lat: number; lng: number } | null;
@@ -183,7 +206,7 @@ export const ExplorePage = () => {
       const dB = locB ? haversineKm(coords.lat, coords.lng, locB.lat, locB.lng) : Infinity;
       return dA - dB;
     });
-  }, [items, currentUser?.id, sortByDistance, coords]);
+  }, [items, currentUser?.id, genreFilter, sortByDistance, coords]);
 
   const getDistance = (book: Item): number | undefined => {
     if (!coords) return undefined;
@@ -294,6 +317,32 @@ export const ExplorePage = () => {
                     }`}
                   >
                     {f.label}
+                  </button>
+                ))}
+              </div>
+              {/* Genre filters */}
+              <div className="flex gap-2 pt-1.5 overflow-x-auto scrollbar-hide">
+                <button
+                  onClick={() => { triggerHaptic('light'); setGenreFilter(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
+                    genreFilter === ''
+                      ? 'bg-accent text-white border-accent'
+                      : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                  }`}
+                >
+                  All Genres
+                </button>
+                {GENRE_FILTERS.map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() => { triggerHaptic('light'); setGenreFilter(genreFilter === g.value ? '' : g.value); }}
+                    className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
+                      genreFilter === g.value
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                    }`}
+                  >
+                    {g.label}
                   </button>
                 ))}
               </div>
