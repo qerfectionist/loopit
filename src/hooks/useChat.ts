@@ -23,7 +23,7 @@ export const useChatMessages = (conversationId: string | undefined) => {
   });
 };
 
-/** Send a message */
+/** Send a message — with optimistic UI (message appears instantly) */
 export const useSendMessage = () => {
   const queryClient = useQueryClient();
 
@@ -33,14 +33,53 @@ export const useSendMessage = () => {
       sender_id: string;
       content: string;
     }) => sendMessage(msg),
-    onSuccess: (data) => {
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: ['messages', data.conversation_id] });
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+    onMutate: async (newMsg) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['messages', newMsg.conversation_id] });
+
+      // Snapshot previous messages for rollback
+      const previousMessages = queryClient.getQueryData<Message[]>(
+        ['messages', newMsg.conversation_id]
+      );
+
+      // Inject optimistic message immediately
+      const optimistic: Message = {
+        id: `optimistic-${Date.now()}`,
+        conversation_id: newMsg.conversation_id,
+        sender_id: newMsg.sender_id,
+        content: newMsg.content,
+        type: 'text',
+        read_at: null,
+        created_at: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData<Message[]>(
+        ['messages', newMsg.conversation_id],
+        (old) => [...(old ?? []), optimistic]
+      );
+
+      return { previousMessages, conversationId: newMsg.conversation_id };
+    },
+
+    onError: (_err, _newMsg, context) => {
+      // Rollback to snapshot on failure
+      if (context?.previousMessages !== undefined) {
+        queryClient.setQueryData(
+          ['messages', context.conversationId],
+          context.previousMessages
+        );
       }
+    },
+
+    onSettled: (_data, _err, variables) => {
+      // Always sync with server after mutation (success or failure)
+      queryClient.invalidateQueries({ queryKey: ['messages', variables.conversation_id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
   });
 };
+
 
 /** Mark messages as read when entering a chat */
 export const useMarkRead = () => {
