@@ -25,6 +25,11 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 | **Match → Conversation (атомарно)** | ✅ | upsert conv перед update status, idempotent |
 | **Realtime chat с двумя пользователями** | ✅ | Сообщения без refresh, Realtime WebSocket |
 | **Exchange completion via PostgreSQL RPC** | ✅ | confirm_exchange: SELECT FOR UPDATE, атомарно |
+| **FTS поиск (title > author > description)** | ✅ | search_items() RPC, ts_rank_cd, GIN index |
+| **Image compression** | ✅ | browser-image-compression, max 800KB перед upload |
+| **Telegram Bot уведомления** | ✅ | notify-telegram Edge Function: new_match, match_accepted |
+| **ISBN сканер** | ✅ | BarcodeDetector API + OpenLibrary автозаполнение |
+| **Геолокация** | ✅ | Дистанция на карточках, сорт Nearest, users.location JSONB |
 
 ---
 
@@ -50,11 +55,10 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 
 | Фича | Приоритет | Статус |
 |------|-----------|--------|
-| Реальный поиск книг (PostgreSQL FTS) | 🔴 Высокий | Следующая |
 | Wishlist-based matching | 🟠 Средний | Не начато |
+| Profile trust / rating UI | 🟡 Низкий | Схема есть, UI нет |
 | Exchange flow polish | 🟡 Низкий | Базовый flow работает |
-| Profile trust / rating | 🟡 Низкий | Не начато |
-| Code splitting / bundle optimization | 🟢 Низкий | Не начато |
+| Code splitting / bundle optimization | 🟢 Низкий | Bundle 784KB — нужен lazy load |
 
 ---
 
@@ -64,9 +68,10 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 |-------------|--------------------------------------------|
 | `ALLOW_DEV_AUTH=false` | ✅ Закрыто — dev bypass отключён в production |
 | JWT срок — 7 дней | Нет auto-refresh |
-| Bundle > 500KB | Vite предупреждает — нужен code splitting |
+| Bundle > 500KB | 784KB — нужен code splitting / lazy import |
 | CORS `'*'` | Edge Function принимает запросы с любого Origin |
-| Поиск — ilike без FTS | trigram индексы добавлены, но не полноценный FTS |
+| BarcodeDetector | Не работает в Firefox, iOS < Safari 17 |
+| Геолокация | Только если пользователь разрешил доступ к камере |
 
 ---
 
