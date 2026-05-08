@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { compressImage } from '@/lib/compressImage';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Plus, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,12 +54,12 @@ export const AddBookPage = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     const remaining = MAX_IMAGES - imageFiles.length;
     const newFiles = files.slice(0, remaining);
 
-    // Generate previews
+    // Generate previews immediately from originals (fast)
     newFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -67,7 +68,12 @@ export const AddBookPage = () => {
       reader.readAsDataURL(file);
     });
 
-    setImageFiles((prev) => [...prev, ...newFiles]);
+    // Compress before storing — runs in background via WebWorker
+    setUploadingImage(true);
+    const compressed = await Promise.all(newFiles.map(compressImage));
+    setUploadingImage(false);
+
+    setImageFiles((prev) => [...prev, ...compressed]);
 
     // Reset input
     if (fileInputRef.current) {
