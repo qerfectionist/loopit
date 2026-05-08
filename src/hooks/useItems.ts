@@ -6,6 +6,7 @@ import type { ItemCategory, ItemCondition, ExchangeType } from '@/types';
 export const useItems = (opts?: {
   search?: string;
   category?: ItemCategory;
+  condition?: ItemCondition;
   limit?: number;
   offset?: number;
 }) => {

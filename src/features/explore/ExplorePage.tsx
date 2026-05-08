@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui';
 import { triggerHaptic, triggerNotification } from '@/lib/telegram';
 import { conditionLabels, conditionColors } from '@/lib/utils';
 import { useItems, useUserItems, useItemsCount } from '@/hooks/useItems';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useMatches, useLikeItem } from '@/hooks/useMatches';
 import { useExchanges } from '@/hooks/useExchanges';
 import { useAppStore } from '@/stores/appStore';
@@ -143,21 +144,23 @@ export const ExplorePage = () => {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const currentUser = useAppStore((s) => s.currentUser);
 
-  const { data: items, isLoading } = useItems({ search: searchQuery });
+  // Debounce search — prevents a DB call on every keystroke
+  const debouncedSearch = useDebounce(searchQuery, 350);
+
+  const { data: items, isLoading } = useItems({
+    search: debouncedSearch || undefined,
+    condition: conditionFilter !== 'all' ? conditionFilter : undefined,
+  });
   const { data: myItems } = useUserItems(currentUser?.id);
   const { data: matches = [] } = useMatches(currentUser?.id);
   const { data: exchanges = [] } = useExchanges(currentUser?.id);
   const { data: totalItems = 0 } = useItemsCount();
   const likeItem = useLikeItem();
 
-  // Filter out the current user's own items + condition filter
+  // Filter out current user's own items (still client-side — needs userId, not a DB concern)
   const filteredBooks = useMemo(() => {
-    let result = items?.filter((book) => book.user_id !== currentUser?.id) || [];
-    if (conditionFilter !== 'all') {
-      result = result.filter((book) => book.condition === conditionFilter);
-    }
-    return result;
-  }, [items, currentUser?.id, conditionFilter]);
+    return items?.filter((book) => book.user_id !== currentUser?.id) || [];
+  }, [items, currentUser?.id]);
 
   // Stats
   const pendingMatches = matches.filter((m) => m.status === 'pending').length;

@@ -5,10 +5,11 @@ import type { Item, ItemCategory, ExchangeType, ItemCondition } from '@/types';
 export const getItems = async (opts?: {
   search?: string;
   category?: ItemCategory;
+  condition?: ItemCondition;
   limit?: number;
   offset?: number;
 }): Promise<Item[]> => {
-  const { search, category, limit = 20, offset = 0 } = opts ?? {};
+  const { search, category, condition, limit = 20, offset = 0 } = opts ?? {};
 
   let query = supabase
     .from('items')
@@ -19,6 +20,10 @@ export const getItems = async (opts?: {
 
   if (category) {
     query = query.eq('category', category);
+  }
+
+  if (condition) {
+    query = query.eq('condition', condition);
   }
 
   if (search) {
