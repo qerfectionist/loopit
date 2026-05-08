@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, BookOpen, ArrowUpRight, Sparkles, Loader2, Heart, Filter, X } from 'lucide-react';
+import { Search, Plus, BookOpen, ArrowUpRight, Sparkles, Loader2, Heart, Filter, X, MapPin, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shell } from '@/components/layout';
 import { Card, Badge, Button } from '@/components/ui';
@@ -12,6 +12,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useMatches, useLikeItem } from '@/hooks/useMatches';
 import { useExchanges } from '@/hooks/useExchanges';
 import { useAppStore } from '@/stores/appStore';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { haversineKm, formatDistance } from '@/lib/geo';
 import type { Item, ItemCondition } from '@/types';
 
 const CONDITION_FILTERS: { value: ItemCondition | 'all'; label: string }[] = [
@@ -42,12 +44,14 @@ const BookCard = ({
   onLike,
   isLiked,
   isLiking,
+  distance,
 }: {
   book: Item;
   index: number;
   onLike: (e: React.MouseEvent) => void;
   isLiked: boolean;
   isLiking: boolean;
+  distance?: number;
 }) => {
   const navigate = useNavigate();
   const hasImage = book.images && book.images.length > 0 && book.images[0];
@@ -118,9 +122,15 @@ const BookCard = ({
                 <span className="text-[12px] text-text-secondary leading-tight">
                   {book.user?.first_name}
                 </span>
-                <span className="text-[10px] text-text-muted leading-tight">
-                  ★ {book.user?.rating?.toFixed(1)}
-                </span>
+                {distance !== undefined ? (
+                  <span className="text-[10px] text-accent leading-tight flex items-center gap-0.5">
+                    <MapPin size={9} />{formatDistance(distance)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-text-muted leading-tight">
+                    ★ {book.user?.rating?.toFixed(1)}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -141,8 +151,10 @@ export const ExplorePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [conditionFilter, setConditionFilter] = useState<ItemCondition | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [sortByDistance, setSortByDistance] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const currentUser = useAppStore((s) => s.currentUser);
+  const { coords } = useGeolocation(currentUser?.id);
 
   // Debounce search — prevents a DB call on every keystroke
   const debouncedSearch = useDebounce(searchQuery, 350);
@@ -157,10 +169,28 @@ export const ExplorePage = () => {
   const { data: totalItems = 0 } = useItemsCount();
   const likeItem = useLikeItem();
 
-  // Filter out current user's own items (still client-side — needs userId, not a DB concern)
+  // Filter out current user's own items
   const filteredBooks = useMemo(() => {
-    return items?.filter((book) => book.user_id !== currentUser?.id) || [];
-  }, [items, currentUser?.id]);
+    const mine = items?.filter((book) => book.user_id !== currentUser?.id) ?? [];
+
+    if (!sortByDistance || !coords) return mine;
+
+    // Sort by distance when coords available
+    return [...mine].sort((a, b) => {
+      const locA = a.user?.location as { lat: number; lng: number } | null;
+      const locB = b.user?.location as { lat: number; lng: number } | null;
+      const dA = locA ? haversineKm(coords.lat, coords.lng, locA.lat, locA.lng) : Infinity;
+      const dB = locB ? haversineKm(coords.lat, coords.lng, locB.lat, locB.lng) : Infinity;
+      return dA - dB;
+    });
+  }, [items, currentUser?.id, sortByDistance, coords]);
+
+  const getDistance = (book: Item): number | undefined => {
+    if (!coords) return undefined;
+    const loc = book.user?.location as { lat: number; lng: number } | null;
+    if (!loc) return undefined;
+    return haversineKm(coords.lat, coords.lng, loc.lat, loc.lng);
+  };
 
   // Stats
   const pendingMatches = matches.filter((m) => m.status === 'pending').length;
@@ -306,12 +336,27 @@ export const ExplorePage = () => {
       </div>
 
       {/* Book grid */}
-      <div className="px-5 pb-6">
+      <div className="px-5 pb-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-[16px] font-semibold">
-            {searchQuery ? `Results for "${searchQuery}"` : 'Near you'}
+            {searchQuery ? `Results for "${searchQuery}"` : sortByDistance ? 'Nearest to you' : 'Near you'}
           </h2>
-          <span className="text-[13px] text-text-muted">{filteredBooks.length} books</span>
+          <div className="flex items-center gap-2">
+            {coords && (
+              <button
+                onClick={() => { triggerHaptic('light'); setSortByDistance((v) => !v); }}
+                className={`flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-lg border transition-colors ${
+                  sortByDistance
+                    ? 'bg-accent/10 text-accent border-accent/30'
+                    : 'bg-bg-secondary text-text-muted border-border'
+                }`}
+              >
+                <ArrowUpDown size={12} />
+                {sortByDistance ? 'Nearest' : 'Recent'}
+              </button>
+            )}
+            <span className="text-[13px] text-text-muted">{filteredBooks.length} books</span>
+          </div>
         </div>
 
         {isLoading ? (
@@ -330,6 +375,7 @@ export const ExplorePage = () => {
                     isLiked={likedIds.has(book.id)}
                     isLiking={likeItem.isPending}
                     onLike={(e) => handleLike(book, e)}
+                    distance={getDistance(book)}
                   />
                 ))}
               </div>
