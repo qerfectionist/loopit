@@ -83,83 +83,31 @@ export const acceptExchange = async (exchangeId: string): Promise<boolean> => {
   return true;
 };
 
-/** Confirm exchange completion (by one party) */
+/** Confirm exchange completion (by one party) — atomic via PostgreSQL RPC */
 export const confirmExchange = async (
   exchangeId: string,
   userId: string
 ): Promise<boolean> => {
-  // First get the exchange to know which field to update
-  const { data: exchange } = await supabase
-    .from('exchanges')
-    .select('initiator_id, responder_id, initiator_confirmed, responder_confirmed')
-    .eq('id', exchangeId)
-    .single();
-
-  if (!exchange) return false;
-
-  const isInitiator = exchange.initiator_id === userId;
-  const updateField = isInitiator
-    ? { initiator_confirmed: true }
-    : { responder_confirmed: true };
-
-  // Check if other party already confirmed
-  const otherConfirmed = isInitiator
-    ? exchange.responder_confirmed
-    : exchange.initiator_confirmed;
-
-  // If both confirmed, mark as completed
-  const statusUpdate = otherConfirmed
-    ? { ...updateField, status: 'completed', completed_at: new Date().toISOString() }
-    : updateField;
-
-  const { error } = await supabase
-    .from('exchanges')
-    .update(statusUpdate)
-    .eq('id', exchangeId);
+  const { data, error } = await supabase.rpc('confirm_exchange', {
+    p_exchange_id: exchangeId,
+    p_user_id: userId,
+  });
 
   if (error) {
-    console.error('[Exchanges] Confirm failed:', error);
+    console.error('[Exchanges] Confirm RPC failed:', error);
     return false;
   }
 
-  // If completed, update item statuses to 'exchanged'
-  if (otherConfirmed) {
-    const { data: ex } = await supabase
-      .from('exchanges')
-      .select('item_given, item_received')
-      .eq('id', exchangeId)
-      .single();
+  const result = data as { completed?: boolean; error?: string };
 
-    if (ex) {
-      const itemIds = [ex.item_given, ex.item_received].filter(Boolean);
-      if (itemIds.length > 0) {
-        await supabase
-          .from('items')
-          .update({ status: 'exchanged' })
-          .in('id', itemIds);
-      }
-    }
-
-    // Update users' total_exchanges count
-    if (exchange.initiator_id && exchange.responder_id) {
-      for (const uid of [exchange.initiator_id, exchange.responder_id]) {
-        const { data: user } = await supabase
-          .from('users')
-          .select('total_exchanges')
-          .eq('id', uid)
-          .single();
-        if (user) {
-          await supabase
-            .from('users')
-            .update({ total_exchanges: (user.total_exchanges ?? 0) + 1 })
-            .eq('id', uid);
-        }
-      }
-    }
+  if (result?.error) {
+    console.error('[Exchanges] Confirm RPC error:', result.error);
+    return false;
   }
 
   return true;
 };
+
 
 /** Cancel an exchange */
 export const cancelExchange = async (exchangeId: string): Promise<boolean> => {
