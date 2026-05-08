@@ -158,14 +158,7 @@ export const createLike = async (opts: {
     .in('status', ['pending', 'viewed'])
     .maybeSingle();
 
-  // Fetch both profiles for notifications
-  const { data: profiles } = await supabase
-    .from('users')
-    .select('id, telegram_id, first_name')
-    .in('id', [likerUserId, ownerUserId]);
 
-  const likerProfile = profiles?.find((u) => u.id === likerUserId);
-  const ownerProfile = profiles?.find((u) => u.id === ownerUserId);
 
   if (reciprocal && data) {
     // Auto-accept both matches
