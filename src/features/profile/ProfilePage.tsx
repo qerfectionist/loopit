@@ -122,10 +122,14 @@ export const ProfilePage = () => {
               <div className="flex items-center gap-0.5">
                 <Star size={14} className="text-warning fill-warning" />
                 <span className="text-[18px] font-bold">
-                  {currentUser.rating > 0 ? currentUser.rating : '—'}
+                  {currentUser.rating > 0 ? currentUser.rating.toFixed(1) : '—'}
                 </span>
               </div>
-              <p className="text-[11px] text-text-muted">Rating</p>
+              <p className="text-[11px] text-text-muted">
+                {currentUser.review_count > 0 
+                  ? `${currentUser.review_count} Review${currentUser.review_count !== 1 ? 's' : ''}` 
+                  : 'Rating'}
+              </p>
             </div>
           </div>
         </motion.div>

@@ -11,6 +11,7 @@ export interface User {
   location: LocationData | null;
   rating: number;
   total_exchanges: number;
+  review_count: number;
   created_at: string;
   updated_at: string;
 }

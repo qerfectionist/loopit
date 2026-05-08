@@ -23,6 +23,7 @@ const DEV_MOCK_USER: User = {
   bio: 'Local development account',
   rating: 5.0,
   total_exchanges: 0,
+  review_count: 0,
   location: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),

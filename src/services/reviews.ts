@@ -39,36 +39,16 @@ export const submitReview = async (params: {
   rating: number;
   comment?: string;
 }): Promise<Review | null> => {
-  const { data, error } = await supabase
-    .from('reviews')
-    .insert({
-      exchange_id: params.exchange_id,
-      reviewer_id: params.reviewer_id,
-      reviewed_id: params.reviewed_id,
-      rating: params.rating,
-      comment: params.comment ?? null,
-    })
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('submit_review', {
+    p_exchange_id: params.exchange_id,
+    p_rating: params.rating,
+    p_comment: params.comment ?? null,
+  });
 
   if (error) {
     console.error('[Reviews] Submit failed:', error);
     return null;
   }
 
-  // Update user's average rating
-  const { data: reviews } = await supabase
-    .from('reviews')
-    .select('rating')
-    .eq('reviewed_id', params.reviewed_id);
-
-  if (reviews && reviews.length > 0) {
-    const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-    await supabase
-      .from('users')
-      .update({ rating: Math.round(avgRating * 100) / 100 })
-      .eq('id', params.reviewed_id);
-  }
-
-  return data as Review;
+  return data as unknown as Review;
 };
