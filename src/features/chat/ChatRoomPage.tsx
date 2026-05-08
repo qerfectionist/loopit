@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send, Repeat2, MoreVertical, Loader2 } from 'lucide-react';
 import { Shell } from '@/components/layout';
 import { Avatar } from '@/components/ui';
 import { triggerHaptic } from '@/lib/telegram';
 import { useChatMessages, useSendMessage, useMarkRead, useRealtimeMessages } from '@/hooks/useChat';
+import { useTypingPresence } from '@/hooks/useTypingPresence';
 import { useAppStore } from '@/stores/appStore';
 import { getConversations } from '@/services/chat';
 import type { Conversation } from '@/types';
@@ -22,6 +23,13 @@ export const ChatRoomPage = () => {
   const { data: messages = [], isLoading } = useChatMessages(conversationId);
   const sendMessage = useSendMessage();
   const markRead = useMarkRead();
+  const [partnerIsTyping, setPartnerIsTyping] = useState(false);
+
+  const { startTyping, stopTyping } = useTypingPresence(
+    conversationId,
+    currentUser?.id,
+    setPartnerIsTyping
+  );
 
   // Load conversation details (partner info)
   useEffect(() => {
@@ -57,6 +65,7 @@ export const ChatRoomPage = () => {
   const handleSend = () => {
     if (!message.trim() || !currentUser || !conversationId) return;
     triggerHaptic('light');
+    stopTyping(); // clear typing indicator immediately
     sendMessage.mutate({
       conversation_id: conversationId,
       sender_id: currentUser.id,
@@ -174,6 +183,25 @@ export const ChatRoomPage = () => {
             </>
           )}
           <div ref={messagesEndRef} />
+
+          {/* Typing indicator */}
+          <AnimatePresence>
+            {partnerIsTyping && (
+              <motion.div
+                initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="flex justify-start px-1"
+              >
+                <div className="bg-bg-secondary border border-border rounded-2xl rounded-bl-md px-3.5 py-2.5 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce [animation-delay:300ms]" />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Input */}
@@ -184,7 +212,11 @@ export const ChatRoomPage = () => {
               type="text"
               placeholder="Type a message..."
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                if (e.target.value.trim()) startTyping();
+                else stopTyping();
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSend();
               }}
