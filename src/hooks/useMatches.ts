@@ -17,10 +17,11 @@ export const useAcceptMatch = () => {
 
   return useMutation({
     mutationFn: (matchId: string) => acceptMatch(matchId),
-    onSuccess: () => {
+    onSuccess: (conversationId) => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
       queryClient.invalidateQueries({ queryKey: ['unreadMatches'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      return conversationId; // passed to onSuccess in component
     },
   });
 };

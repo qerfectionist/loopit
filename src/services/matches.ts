@@ -10,7 +10,8 @@ export const getMatches = async (userId: string): Promise<Match[]> => {
       partner_a:users!matches_user_a_fkey(*),
       partner_b:users!matches_user_b_fkey(*),
       offered_item:items!matches_item_a_fkey(*, user:users(*)),
-      wanted_item:items!matches_item_b_fkey(*, user:users(*))
+      wanted_item:items!matches_item_b_fkey(*, user:users(*)),
+      conversation:conversations!conversations_match_id_fkey(id)
     `)
     .or(`user_a.eq.${userId},user_b.eq.${userId}`)
     .in('status', ['pending', 'viewed', 'accepted'])
@@ -21,10 +22,11 @@ export const getMatches = async (userId: string): Promise<Match[]> => {
     return [];
   }
 
-  // Normalize: set `partner` to the other user
+  // Normalize: set `partner` to the other user, flatten conversation_id
   return (data ?? []).map((match) => ({
     ...match,
     partner: match.user_a === userId ? match.partner_b : match.partner_a,
+    conversation_id: (match.conversation as { id: string }[] | null)?.[0]?.id ?? null,
   })) as Match[];
 };
 
@@ -59,7 +61,7 @@ export const getUnreadMatchesCount = async (userId: string): Promise<number> => 
 };
 
 /** Accept a match — creates a conversation so users can chat */
-export const acceptMatch = async (matchId: string): Promise<boolean> => {
+export const acceptMatch = async (matchId: string): Promise<string | null> => {
   // 1. Get match details to know who the users are
   const { data: match, error: fetchErr } = await supabase
     .from('matches')
@@ -69,7 +71,7 @@ export const acceptMatch = async (matchId: string): Promise<boolean> => {
 
   if (fetchErr || !match) {
     console.error('[Matches] Failed to fetch match for accept:', fetchErr);
-    return false;
+    return null;
   }
 
   // 2. Update match status
@@ -80,24 +82,24 @@ export const acceptMatch = async (matchId: string): Promise<boolean> => {
 
   if (error) {
     console.error('[Matches] Failed to accept match:', error);
-    return false;
+    return null;
   }
 
-  // 3. Create conversation (ignore if already exists)
-  const { error: convErr } = await supabase
+  // 3. Create conversation (or get existing one)
+  const { data: conv, error: convErr } = await supabase
     .from('conversations')
-    .insert({
-      match_id: matchId,
-      user_a: match.user_a,
-      user_b: match.user_b,
-    });
+    .upsert(
+      { match_id: matchId, user_a: match.user_a, user_b: match.user_b },
+      { onConflict: 'match_id', ignoreDuplicates: false }
+    )
+    .select('id')
+    .single();
 
   if (convErr) {
     console.error('[Matches] Failed to create conversation:', convErr);
-    // Not fatal — match is still accepted
   }
 
-  return true;
+  return conv?.id ?? null;
 };
 
 /**

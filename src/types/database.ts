@@ -75,6 +75,7 @@ export interface Match {
   partner?: User;
   offered_item?: Item;
   wanted_item?: Item;
+  conversation_id?: string | null;
 }
 
 export interface Conversation {

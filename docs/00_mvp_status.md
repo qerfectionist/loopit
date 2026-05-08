@@ -1,7 +1,7 @@
 # Loopit MVP — Статус
 
 _Последнее обновление: 2026-05-08_
-_Коммит: 2c6be37 (master)_
+_Supabase project: gleoaovlbiltiwcoxpes (новый, после миграции)_
 _Деплой: https://loopit-peach.vercel.app_
 
 ---
@@ -20,6 +20,7 @@ _Деплой: https://loopit-peach.vercel.app_
 | JWT expiry check на клиенте | ✅ | `src/services/auth.ts` декодирует exp |
 | Frontend deploy на Vercel (auto из master) | ✅ | loopit-peach.vercel.app |
 | Edge Function задеплоена в Supabase | ✅ | auth-telegram активна |
+| Загрузка фото книг (Supabase Storage upload) | ✅ | item-images bucket, RLS по user UUID |
 | npm run build | ✅ | 0 ошибок |
 | npm run lint | ✅ | 0 ошибок |
 
@@ -29,7 +30,7 @@ _Деплой: https://loopit-peach.vercel.app_
 
 | Фича | Приоритет |
 |------|-----------|
-| Загрузка фото книг (Supabase Storage upload) | Высокий |
+| ~~Загрузка фото книг~~ | ~~Высокий~~ → ✅ Готово |
 | Realtime чат (WebSocket / Supabase Realtime) | Высокий |
 | Реальный поиск книг (полнотекстовый или по фильтрам) | Высокий |
 | Матчинг на основе wishlists | Средний |

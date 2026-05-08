@@ -55,12 +55,12 @@ const MatchCard = ({ match, index }: { match: Match; index: number }) => {
               </div>
             </div>
             
-            {match.status !== 'pending' && (
+            {match.status !== 'pending' && match.conversation_id && (
               <button 
                 className="w-8 h-8 rounded-full bg-bg-tertiary flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                 onClick={() => {
                   triggerHaptic('light');
-                  navigate(`/chat/${match.id}`);
+                  navigate(`/chat/${match.conversation_id}`);
                 }}
               >
                 <ChevronRight size={18} />
@@ -109,7 +109,11 @@ const MatchCard = ({ match, index }: { match: Match; index: number }) => {
               disabled={acceptMatch.isPending}
               onClick={() => {
                 triggerNotification('success');
-                acceptMatch.mutate(match.id);
+                acceptMatch.mutate(match.id, {
+                  onSuccess: (conversationId) => {
+                    if (conversationId) navigate(`/chat/${conversationId}`);
+                  },
+                });
               }}
             >
               <Check size={18} className="mr-1.5" />
