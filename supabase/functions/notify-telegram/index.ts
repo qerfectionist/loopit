@@ -17,7 +17,7 @@ const MESSAGES: Record<NotifyPayload['event'], (data?: Record<string, string>) =
     `💬 *Новое сообщение*\n${d?.name ?? 'Пользователь'}: ${d?.text ?? '...'}`,
   exchange_proposed: (d) =>
     `🤝 *Предложение обмена!*\n${d?.name ?? 'Пользователь'} предлагает обменяться. Проверьте детали в приложении.`,
-  exchange_completed: (_d) =>
+  exchange_completed: () =>
     `✅ *Обмен завершён!*\nОба участника подтвердили передачу. Оставьте отзыв о партнёре.`,
 };
 
