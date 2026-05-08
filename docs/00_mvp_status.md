@@ -20,9 +20,11 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 | item-images bucket | ✅ | Public bucket, 5MB limit, jpeg/png/webp |
 | Photos saved in items.images[] | ✅ | URL в массиве после upload |
 | Vercel deploy (auto из master) | ✅ | loopit-peach.vercel.app |
-| Realtime chat (код + hooks) | ✅ | useRealtimeMessages, subscribeToMessages |
-| Chat navigation fix (conversation_id) | ✅ | Accept → автоматически открывает чат |
 | ALLOW_DEV_AUTH=false (production secured) | ✅ | dev bypass → 401 подтверждено |
+| **Full E2E flow** | ✅ | PASSED с двумя реальными Telegram пользователями |
+| **Match → Conversation (атомарно)** | ✅ | upsert conv перед update status, idempotent |
+| **Realtime chat с двумя пользователями** | ✅ | Сообщения без refresh, Realtime WebSocket |
+| **Exchange completion via PostgreSQL RPC** | ✅ | confirm_exchange: SELECT FOR UPDATE, атомарно |
 
 ---
 
@@ -35,7 +37,10 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 | `supabase/migrations/003_fix_rls.sql` | RLS политики — трогать только осознанно |
 | `supabase/migrations/004_items_owner_select.sql` | RLS owner select |
 | `supabase/migrations/005_storage_item_images.sql` | Storage bucket + policies |
+| `supabase/migrations/007_confirm_exchange_rpc.sql` | Transaction logic — SELECT FOR UPDATE |
 | `uploadItemImage` в `src/services/items.ts` | Работает, не трогать |
+| `src/services/matches.ts` | Match atomicity исправлена, не трогать |
+| `src/services/exchanges.ts` | RPC confirm flow, не трогать |
 | Storage bucket настройки | Mime types, size limit настроены через Dashboard |
 | `.env` / `.env.local` | Credentials нового проекта |
 
@@ -45,11 +50,11 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 
 | Фича | Приоритет | Статус |
 |------|-----------|--------|
-| Реальный поиск книг (PostgreSQL FTS) | 🔴 Высокий | Не начато |
+| Реальный поиск книг (PostgreSQL FTS) | 🔴 Высокий | Следующая |
 | Wishlist-based matching | 🟠 Средний | Не начато |
-| Realtime chat (полный тест с 2 пользователями) | 🟠 Средний | Код готов, не протестировано |
-| Exchange flow polish | 🟡 Низкий | Не начато |
+| Exchange flow polish | 🟡 Низкий | Базовый flow работает |
 | Profile trust / rating | 🟡 Низкий | Не начато |
+| Code splitting / bundle optimization | 🟢 Низкий | Не начато |
 
 ---
 
@@ -61,7 +66,7 @@ _E2E тест: **PASSED** (2026-05-08) — полный сценарий с дв
 | JWT срок — 7 дней | Нет auto-refresh |
 | Bundle > 500KB | Vite предупреждает — нужен code splitting |
 | CORS `'*'` | Edge Function принимает запросы с любого Origin |
-| Поиск — client-side | ExplorePage фильтрует данные в памяти, не в БД |
+| Поиск — ilike без FTS | trigram индексы добавлены, но не полноценный FTS |
 
 ---
 
