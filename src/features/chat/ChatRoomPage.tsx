@@ -10,6 +10,7 @@ import { useTypingPresence } from '@/hooks/useTypingPresence';
 import { useAppStore } from '@/stores/appStore';
 import { getConversations } from '@/services/chat';
 import type { Conversation } from '@/types';
+import { useBlockUser, useReportUser } from '@/hooks/useSafety';
 
 export const ChatRoomPage = () => {
   const { id: conversationId } = useParams<{ id: string }>();
@@ -24,6 +25,10 @@ export const ChatRoomPage = () => {
   const sendMessage = useSendMessage();
   const markRead = useMarkRead();
   const [partnerIsTyping, setPartnerIsTyping] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const blockUser = useBlockUser();
+  const reportUser = useReportUser();
 
   const { startTyping, stopTyping } = useTypingPresence(
     conversationId,
@@ -75,6 +80,38 @@ export const ChatRoomPage = () => {
     inputRef.current?.focus();
   };
 
+  const handleBlock = async () => {
+    if (!conv?.partner) return;
+    const confirm = window.confirm('Are you sure you want to block this user? You will no longer see their items or messages.');
+    if (!confirm) return;
+    
+    try {
+      await blockUser.mutateAsync(conv.partner.id);
+      navigate('/chat');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to block user');
+    }
+  };
+
+  const handleReport = async () => {
+    if (!conv?.partner) return;
+    const reason = window.prompt('Please enter a reason for reporting this user:');
+    if (!reason) return;
+
+    try {
+      await reportUser.mutateAsync({ 
+        reportedId: conv.partner.id, 
+        reason,
+        relatedConversationId: conversationId 
+      });
+      alert('User reported successfully. Our team will review this shortly.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to report user');
+    }
+  };
+
   const partnerName = conv?.partner
     ? `${conv.partner.first_name} ${conv.partner.last_name ?? ''}`
     : 'Chat';
@@ -105,9 +142,48 @@ export const ChatRoomPage = () => {
               {partnerName}
             </p>
           </div>
-          <button className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-bg-tertiary transition-colors flex-shrink-0">
-            <MoreVertical size={18} className="text-text-secondary" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-bg-tertiary transition-colors flex-shrink-0"
+            >
+              <MoreVertical size={18} className="text-text-secondary" />
+            </button>
+            
+            <AnimatePresence>
+              {isMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    className="absolute right-0 top-full mt-1 w-48 bg-bg-secondary border border-border rounded-xl shadow-lg z-50 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        handleReport();
+                      }}
+                      className="w-full px-4 py-3 text-left text-[14px] text-text-primary hover:bg-bg-tertiary transition-colors"
+                    >
+                      Report User
+                    </button>
+                    <div className="h-[1px] bg-border w-full" />
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        handleBlock();
+                      }}
+                      className="w-full px-4 py-3 text-left text-[14px] text-red-500 hover:bg-bg-tertiary transition-colors"
+                    >
+                      Block User
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Messages */}

@@ -8,6 +8,7 @@ import { useMatches, useAcceptMatch, useDeclineMatch, useLikeItem } from '@/hook
 import { useWishlistMatches } from '@/hooks/useWishlist';
 import { useUserItems } from '@/hooks/useItems';
 import { useAppStore } from '@/stores/appStore';
+import { useBlockedUsers } from '@/hooks/useSafety';
 import type { Match, WishlistMatch } from '@/types';
 
 
@@ -255,15 +256,26 @@ export const MatchesPage = () => {
   const { data: matches, isLoading: matchesLoading } = useMatches(currentUser?.id);
   const { data: wishlistMatches = [], isLoading: wishlistLoading } = useWishlistMatches(currentUser?.id);
   const { data: myItems } = useUserItems(currentUser?.id);
+  const { data: blockedUsers = [] } = useBlockedUsers();
   const likeItem = useLikeItem();
 
-  const displayMatches = matches ?? [];
+  const blockedUserIds = new Set(blockedUsers.map(b => b.blocked_id));
+
+  const displayMatches = (matches ?? []).filter(
+    m => !blockedUserIds.has(m.partner?.id ?? '')
+  );
+  
+  const displayWishlistMatches = wishlistMatches.filter(
+    wm => !blockedUserIds.has(wm.other_user_id)
+  );
+
   const isLoading = matchesLoading || wishlistLoading;
 
   const handleRefresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['matches', currentUser?.id] }),
       queryClient.invalidateQueries({ queryKey: ['wishlist-matches', currentUser?.id] }),
+      queryClient.invalidateQueries({ queryKey: ['blocked_users', currentUser?.id] }),
     ]);
   };
 
@@ -278,7 +290,7 @@ export const MatchesPage = () => {
     });
   };
 
-  const totalCount = displayMatches.length + wishlistMatches.length;
+  const totalCount = displayMatches.length + displayWishlistMatches.length;
 
   return (
     <Shell>
@@ -304,14 +316,14 @@ export const MatchesPage = () => {
           )}
 
           {/* Wishlist-based suggestions */}
-          {!isLoading && wishlistMatches.length > 0 && (
+          {!isLoading && displayWishlistMatches.length > 0 && (
             <>
               <div className="flex items-center gap-2 pt-1">
                 <Heart size={14} className="text-accent fill-current" />
                 <span className="text-[13px] font-semibold text-accent">Wishlist Matches</span>
-                <span className="text-[12px] text-text-muted ml-auto">{wishlistMatches.length} found</span>
+                <span className="text-[12px] text-text-muted ml-auto">{displayWishlistMatches.length} found</span>
               </div>
-              {wishlistMatches.map((s, i) => (
+              {displayWishlistMatches.map((s, i) => (
                 <WishlistSuggestionCard
                   key={`${s.other_user_id}-${s.their_item_id}`}
                   suggestion={s}
@@ -324,7 +336,7 @@ export const MatchesPage = () => {
           )}
 
           {/* Regular matches divider */}
-          {!isLoading && displayMatches.length > 0 && wishlistMatches.length > 0 && (
+          {!isLoading && displayMatches.length > 0 && displayWishlistMatches.length > 0 && (
             <div className="flex items-center gap-2 pt-1">
               <Sparkles size={14} className="text-text-muted" />
               <span className="text-[13px] font-semibold text-text-secondary">Other Matches</span>
