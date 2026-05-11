@@ -65,7 +65,7 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
   // 1. Fetch match + participant names to notify the liker
   const { data: match, error: fetchErr } = await supabase
     .from('matches')
-    .select('user_a, user_b, user_a_profile:users!matches_user_a_fkey(telegram_id, first_name), user_b_profile:users!matches_user_b_fkey(first_name)')
+    .select('user_a, user_b')
     .eq('id', matchId)
     .single();
 
@@ -74,19 +74,32 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
     return null;
   }
 
-  // 2. Upsert conversation FIRST — idempotent, safe to retry
-  const { data: conv, error: convErr } = await supabase
+  // 2. Get or create conversation
+  let convId: string | null = null;
+  const { data: existingConv } = await supabase
     .from('conversations')
-    .upsert(
-      { match_id: matchId, user_a: match.user_a, user_b: match.user_b },
-      { onConflict: 'match_id', ignoreDuplicates: false }
-    )
     .select('id')
-    .single();
+    .eq('match_id', matchId)
+    .maybeSingle();
 
-  if (convErr || !conv) {
-    console.error('[Matches] Failed to upsert conversation:', convErr);
-    return null;
+  if (existingConv) {
+    convId = existingConv.id;
+  } else {
+    const { data: newConv, error: convErr } = await supabase
+      .from('conversations')
+      .insert({ match_id: matchId, user_a: match.user_a, user_b: match.user_b })
+      .select('id')
+      .single();
+
+    if (convErr) {
+      console.error('[Matches] Failed to insert conversation:', convErr);
+      // Fallback: maybe it was inserted concurrently
+      const { data: retryConv } = await supabase.from('conversations').select('id').eq('match_id', matchId).maybeSingle();
+      if (retryConv) convId = retryConv.id;
+      else return null;
+    } else if (newConv) {
+      convId = newConv.id;
+    }
   }
 
   // 3. Mark match as accepted
@@ -167,20 +180,22 @@ export const createLike = async (opts: {
       .update({ status: 'accepted' })
       .in('id', [data.id, reciprocal.id]);
 
-    // Upsert conversation (safe on retry / race condition)
-    const { error: convErr } = await supabase
+    // Create conversation
+    const { data: existingConv } = await supabase
       .from('conversations')
-      .upsert(
-        { match_id: data.id, user_a: likerUserId, user_b: ownerUserId },
-        { onConflict: 'match_id', ignoreDuplicates: false }
-      )
       .select('id')
-      .single();
+      .eq('match_id', data.id)
+      .maybeSingle();
 
-    if (convErr) {
-      console.error('[Matches] Reciprocal conv upsert failed:', convErr);
-    } else {
-      console.log('[Matches] 🎉 Reciprocal match! Auto-accepted + conversation upserted');
+    if (!existingConv) {
+      const { error: convErr } = await supabase
+        .from('conversations')
+        .insert({ match_id: data.id, user_a: likerUserId, user_b: ownerUserId });
+      if (convErr) {
+        console.error('[Matches] Reciprocal conv insert failed:', convErr);
+      } else {
+        console.log('[Matches] 🎉 Reciprocal match! Auto-accepted + conversation created');
+      }
     }
   }
 
