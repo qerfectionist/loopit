@@ -83,14 +83,12 @@ export const acceptExchange = async (exchangeId: string): Promise<boolean> => {
   return true;
 };
 
-/** Confirm exchange completion (by one party) — atomic via PostgreSQL RPC */
+/** Confirm exchange completion (by one party) - atomic via PostgreSQL RPC */
 export const confirmExchange = async (
-  exchangeId: string,
-  userId: string
+  exchangeId: string
 ): Promise<boolean> => {
   const { data, error } = await supabase.rpc('confirm_exchange', {
     p_exchange_id: exchangeId,
-    p_user_id: userId,
   });
 
   if (error) {
