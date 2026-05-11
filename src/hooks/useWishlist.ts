@@ -64,9 +64,9 @@ export const useRemoveFromWishlist = () => {
 export const useWishlistMatches = (userId: string | undefined) => {
   return useQuery({
     queryKey: ['wishlist-matches', userId],
-    queryFn: () => findWishlistMatches(userId!),
+    queryFn: () => findWishlistMatches(),
     enabled: !!userId,
-    staleTime: 5 * 60 * 1000, // 5 min — these don't change often
+    staleTime: 5 * 60 * 1000, // 5 min - these don't change often
     gcTime: 10 * 60 * 1000,
   });
 };
