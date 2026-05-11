@@ -1,7 +1,10 @@
 -- ============================================================
 -- 015_secure_notify_trigger.sql
--- Overwrites notify_match_event to use current_setting instead of a hardcoded secret
+-- Overwrites notify_match_event to use Supabase Vault instead of a hardcoded secret
 -- ============================================================
+
+-- Enable Vault extension for secure secret storage
+CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA vault;
 
 CREATE OR REPLACE FUNCTION public.notify_match_event()
 RETURNS TRIGGER
@@ -48,8 +51,15 @@ BEGIN
   FROM public.users
   WHERE id = v_actor_user_id;
 
-  -- Retrieve the secret from a secure DB setting (set via Supabase Dashboard or Vault)
-  v_internal_secret := current_setting('app.settings.internal_notify_secret', true);
+  -- Retrieve the secret from Supabase Vault
+  SELECT decrypted_secret INTO v_internal_secret
+  FROM vault.decrypted_secrets
+  WHERE name = 'internal_notify_secret';
+
+  -- If not found, use a fallback to avoid crashing (though the request will be rejected by the function)
+  IF v_internal_secret IS NULL THEN
+    v_internal_secret := 'MISSING_SECRET';
+  END IF;
 
   -- Fire HTTP call via pg_net (async, non-blocking)
   PERFORM extensions.net.http_post(
