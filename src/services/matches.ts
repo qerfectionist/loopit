@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Match, MatchStatus } from '@/types';
+import type { Match } from '@/types';
 
 /** Get matches for a user (both user_a and user_b) */
 export const getMatches = async (userId: string): Promise<Match[]> => {
@@ -22,30 +22,11 @@ export const getMatches = async (userId: string): Promise<Match[]> => {
     return [];
   }
 
-  // Normalize: set `partner` to the other user, flatten conversation_id
   return (data ?? []).map((match) => ({
     ...match,
     partner: match.user_a === userId ? match.partner_b : match.partner_a,
     conversation_id: (match.conversation as { id: string }[] | null)?.[0]?.id ?? null,
   })) as Match[];
-};
-
-/** Update match status */
-export const updateMatchStatus = async (
-  matchId: string,
-  status: MatchStatus
-): Promise<boolean> => {
-  const { error } = await supabase
-    .from('matches')
-    .update({ status })
-    .eq('id', matchId);
-
-  if (error) {
-    console.error('[Matches] Failed to update match:', error);
-    return false;
-  }
-
-  return true;
 };
 
 /** Get unread matches count */
@@ -60,158 +41,48 @@ export const getUnreadMatchesCount = async (userId: string): Promise<number> => 
   return count ?? 0;
 };
 
-/** Accept a match — creates a conversation so users can chat */
+/** Accept a match and create/reuse its conversation */
 export const acceptMatch = async (matchId: string): Promise<string | null> => {
-  // 1. Fetch match + participant names to notify the liker
-  const { data: match, error: fetchErr } = await supabase
-    .from('matches')
-    .select('user_a, user_b')
-    .eq('id', matchId)
-    .single();
+  const { data, error } = await supabase.rpc('accept_match', {
+    p_match_id: matchId,
+  });
 
-  if (fetchErr || !match) {
-    console.error('[Matches] Failed to fetch match for accept:', fetchErr);
+  if (error) {
+    console.error('[Matches] Failed to accept match:', error);
     return null;
   }
 
-  // 2. Get or create conversation
-  let convId: string | null = null;
-  const { data: existingConv } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('match_id', matchId)
-    .maybeSingle();
-
-  if (existingConv) {
-    convId = existingConv.id;
-  } else {
-    const { data: newConv, error: convErr } = await supabase
-      .from('conversations')
-      .insert({ match_id: matchId, user_a: match.user_a, user_b: match.user_b })
-      .select('id')
-      .single();
-
-    if (convErr) {
-      console.error('[Matches] Failed to insert conversation:', convErr);
-      // Fallback: maybe it was inserted concurrently
-      const { data: retryConv } = await supabase.from('conversations').select('id').eq('match_id', matchId).maybeSingle();
-      if (retryConv) convId = retryConv.id;
-      else return null;
-    } else if (newConv) {
-      convId = newConv.id;
-    }
-  }
-
-  // 3. Mark match as accepted
-  const { error: matchErr } = await supabase
-    .from('matches')
-    .update({ status: 'accepted' })
-    .eq('id', matchId);
-
-  if (matchErr) {
-    console.error('[Matches] Failed to update match status:', matchErr);
-  }
-
-  // NOTE: Telegram notification is now fired server-side by
-  //       the PostgreSQL trigger `trg_notify_match` via pg_net.
-  //       No frontend notify call needed.
-
-  return convId;
+  return data as string | null;
 };
 
 /**
  * Express interest in another user's item.
- * Creates a pending match from the current user (user_a) to the item owner (user_b).
- * item_a is the liker's item they'd offer (optional for now), item_b is the liked item.
+ * User identity and item ownership are verified in the database.
  */
 export const createLike = async (opts: {
   likerUserId: string;
-  likerItemId: string | null; // item the liker would offer — can be null if they have no items yet
+  likerItemId: string | null;
   ownerUserId: string;
   ownerItemId: string;
 }): Promise<{ id: string } | null> => {
-  const { likerUserId, likerItemId, ownerUserId, ownerItemId } = opts;
-
-  // Check if a match already exists between these two users for this item
-  const { data: existing } = await supabase
-    .from('matches')
-    .select('id')
-    .eq('user_a', likerUserId)
-    .eq('user_b', ownerUserId)
-    .eq('item_b', ownerItemId)
-    .maybeSingle();
-
-  if (existing) return existing; // already liked
-
-  const { data, error } = await supabase
-    .from('matches')
-    .insert({
-      user_a: likerUserId,
-      user_b: ownerUserId,
-      item_a: likerItemId,
-      item_b: ownerItemId,
-      score: 50,
-      status: 'pending',
-    })
-    .select('id')
-    .single();
+  const { data, error } = await supabase.rpc('create_like', {
+    p_liker_item_id: opts.likerItemId,
+    p_owner_item_id: opts.ownerItemId,
+  });
 
   if (error) {
     console.error('[Matches] Failed to create like:', error);
     return null;
   }
 
-  // ── Reciprocal check ──
-  // Did the other user already like one of my items?
-  const { data: reciprocal } = await supabase
-    .from('matches')
-    .select('id')
-    .eq('user_a', ownerUserId)
-    .eq('user_b', likerUserId)
-    .in('status', ['pending', 'viewed'])
-    .maybeSingle();
-
-
-
-  if (reciprocal && data) {
-    // Auto-accept both matches
-    await supabase
-      .from('matches')
-      .update({ status: 'accepted' })
-      .in('id', [data.id, reciprocal.id]);
-
-    // Create conversation
-    const { data: existingConv } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('match_id', data.id)
-      .maybeSingle();
-
-    if (!existingConv) {
-      const { error: convErr } = await supabase
-        .from('conversations')
-        .insert({ match_id: data.id, user_a: likerUserId, user_b: ownerUserId });
-      if (convErr) {
-        console.error('[Matches] Reciprocal conv insert failed:', convErr);
-      } else {
-        console.log('[Matches] 🎉 Reciprocal match! Auto-accepted + conversation created');
-      }
-    }
-  }
-
-  // NOTE: Telegram notifications (new_match / match_accepted) are now fired
-  //       server-side by the PostgreSQL trigger `trg_notify_match` via pg_net.
-  //       No frontend notify call needed here.
-
-  return data;
+  return data as { id: string };
 };
 
 /** Decline a match */
 export const declineMatch = async (matchId: string): Promise<boolean> => {
-  const { error } = await supabase
-    .from('matches')
-    .update({ status: 'declined' })
-    .eq('id', matchId);
+  const { error } = await supabase.rpc('decline_match', {
+    p_match_id: matchId,
+  });
 
   if (error) {
     console.error('[Matches] Failed to decline match:', error);
