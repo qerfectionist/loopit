@@ -116,7 +116,7 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
   //       the PostgreSQL trigger `trg_notify_match` via pg_net.
   //       No frontend notify call needed.
 
-  return conv.id;
+  return convId;
 };
 
 /**
