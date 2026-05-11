@@ -9,7 +9,7 @@
  * always return 403 Forbidden.
  *
  * Do NOT add new callers of this function. Add notification logic to:
- *   supabase/migrations/008_match_notify_trigger.sql
+ *   supabase/migrations/0081_match_notify_trigger.sql
  */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

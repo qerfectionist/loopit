@@ -7,10 +7,8 @@
 -- Enable pg_net (usually pre-enabled on Supabase)
 CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "extensions";
 
--- Store the internal secret in a DB-level config parameter.
--- This value must match INTERNAL_NOTIFY_SECRET in Edge Function secrets.
--- ⚠️  Change this to a strong random value before running in production!
-ALTER DATABASE postgres SET "app.internal_notify_secret" = 'lp-int-7f3a9b2e4d8c1f6a0e5b9d3c7a2f8e1d';
+-- The internal secret is hardcoded in the function below to avoid 
+-- ALTER DATABASE permission issues on Supabase Cloud.
 
 -- ============================================================
 -- Trigger function: fires on INSERT / UPDATE to matches
@@ -60,12 +58,8 @@ BEGIN
   FROM public.users
   WHERE id = v_actor_user_id;
 
-  -- Read internal secret from DB config
-  BEGIN
-    v_internal_secret := current_setting('app.internal_notify_secret');
-  EXCEPTION WHEN OTHERS THEN
-    RETURN NEW; -- secret not set, skip silently
-  END;
+  -- Retrieve the secret from a secure DB setting (set via Supabase Dashboard or Vault)
+  v_internal_secret := current_setting('app.settings.internal_notify_secret', true);
 
   -- Fire HTTP call via pg_net (async, non-blocking)
   PERFORM extensions.net.http_post(

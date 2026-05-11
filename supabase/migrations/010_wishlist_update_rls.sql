@@ -4,6 +4,7 @@
 -- SELECT, INSERT, DELETE policies already exist (migration ~005).
 -- =================================================================
 
+DROP POLICY IF EXISTS "Auth users update own wishlists" ON public.wishlists;
 CREATE POLICY "Auth users update own wishlists"
   ON public.wishlists
   FOR UPDATE
