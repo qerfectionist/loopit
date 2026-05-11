@@ -99,9 +99,9 @@ export const getWishlistCount = async (userId: string): Promise<number> => {
  * A has items B wants AND B has items A wants.
  * Calls the find_wishlist_matches Postgres RPC.
  */
-export const findWishlistMatches = async (userId: string): Promise<WishlistMatch[]> => {
+export const findWishlistMatches = async (): Promise<WishlistMatch[]> => {
   const { data, error } = await supabase
-    .rpc('find_wishlist_matches', { p_user_id: userId });
+    .rpc('find_wishlist_matches');
 
   if (error) {
     console.error('[Wishlist] Failed to find wishlist matches:', error);
