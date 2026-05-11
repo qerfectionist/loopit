@@ -44,24 +44,17 @@ export const proposeExchange = async (params: {
   meetup_location?: { lat: number; lng: number; city: string };
   meetup_time?: string;
 }): Promise<Exchange | null> => {
-  const { data, error } = await supabase
-    .from('exchanges')
-    .insert({
-      conversation_id: params.conversation_id,
-      match_id: params.match_id,
-      initiator_id: params.initiator_id,
-      responder_id: params.responder_id,
-      item_given: params.item_given,
-      item_received: params.item_received ?? null,
-      meetup_location: params.meetup_location ?? null,
-      meetup_time: params.meetup_time ?? null,
-      status: 'proposed',
-    })
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('propose_exchange', {
+    p_conversation_id: params.conversation_id,
+    p_match_id: params.match_id,
+    p_item_given: params.item_given,
+    p_item_received: params.item_received ?? null,
+    p_meetup_location: params.meetup_location ?? null,
+    p_meetup_time: params.meetup_time ?? null,
+  });
 
   if (error) {
-    console.error('[Exchanges] Propose failed:', error);
+    console.error('[Exchanges] Propose RPC failed:', error);
     return null;
   }
 
@@ -70,13 +63,12 @@ export const proposeExchange = async (params: {
 
 /** Accept an exchange proposal */
 export const acceptExchange = async (exchangeId: string): Promise<boolean> => {
-  const { error } = await supabase
-    .from('exchanges')
-    .update({ status: 'accepted' })
-    .eq('id', exchangeId);
+  const { error } = await supabase.rpc('accept_exchange', {
+    p_exchange_id: exchangeId,
+  });
 
   if (error) {
-    console.error('[Exchanges] Accept failed:', error);
+    console.error('[Exchanges] Accept RPC failed:', error);
     return false;
   }
 
@@ -109,13 +101,12 @@ export const confirmExchange = async (
 
 /** Cancel an exchange */
 export const cancelExchange = async (exchangeId: string): Promise<boolean> => {
-  const { error } = await supabase
-    .from('exchanges')
-    .update({ status: 'cancelled' })
-    .eq('id', exchangeId);
+  const { error } = await supabase.rpc('cancel_exchange', {
+    p_exchange_id: exchangeId,
+  });
 
   if (error) {
-    console.error('[Exchanges] Cancel failed:', error);
+    console.error('[Exchanges] Cancel RPC failed:', error);
     return false;
   }
 
@@ -128,16 +119,14 @@ export const updateMeetup = async (
   place: string,
   time: string // ISO datetime string
 ): Promise<boolean> => {
-  const { error } = await supabase
-    .from('exchanges')
-    .update({
-      meetup_location: { lat: 0, lng: 0, city: place },
-      meetup_time: time,
-    })
-    .eq('id', exchangeId);
+  const { error } = await supabase.rpc('update_exchange_meetup', {
+    p_exchange_id: exchangeId,
+    p_place: place,
+    p_time: time,
+  });
 
   if (error) {
-    console.error('[Exchanges] Update meetup failed:', error);
+    console.error('[Exchanges] Update meetup RPC failed:', error);
     return false;
   }
 
