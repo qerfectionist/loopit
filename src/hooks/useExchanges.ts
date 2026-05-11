@@ -58,8 +58,8 @@ export const useConfirmExchange = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ exchangeId, userId }: { exchangeId: string; userId: string }) =>
-      confirmExchange(exchangeId, userId),
+    mutationFn: ({ exchangeId }: { exchangeId: string; userId: string }) =>
+      confirmExchange(exchangeId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchanges'] });
       queryClient.invalidateQueries({ queryKey: ['exchange'] });
