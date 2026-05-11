@@ -3,6 +3,8 @@ import { Compass, Repeat2, MessageCircle, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerSelection } from '@/lib/telegram';
 import { useAppStore } from '@/stores/appStore';
+import { useUnreadMatches } from '@/hooks/useMatches';
+import { useUnreadMessages } from '@/hooks/useChat';
 
 const tabs = [
   { id: 'explore' as const, label: 'Explore', icon: Compass, path: '/' },
@@ -14,8 +16,10 @@ const tabs = [
 export const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const unreadMatches = useAppStore((s) => s.unreadMatches);
-  const unreadMessages = useAppStore((s) => s.unreadMessages);
+  const currentUser = useAppStore((s) => s.currentUser);
+  
+  const { data: unreadMatches = 0 } = useUnreadMatches(currentUser?.id);
+  const { data: unreadMessages = 0 } = useUnreadMessages(currentUser?.id);
 
   const getUnread = (id: string) => {
     if (id === 'matches') return unreadMatches;
