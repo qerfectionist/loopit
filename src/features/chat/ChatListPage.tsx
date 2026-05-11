@@ -6,18 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/telegram';
 import { formatRelativeTime, truncate } from '@/lib/utils';
 import { useConversations } from '@/hooks/useChat';
-import { useBlockedUsers } from '@/hooks/useSafety';
+
 import { useAppStore } from '@/stores/appStore';
 
 export const ChatListPage = () => {
   const navigate = useNavigate();
   const currentUser = useAppStore((s) => s.currentUser);
   const { data: allConversations = [], isLoading } = useConversations(currentUser?.id);
-  const { data: blockedUsers = [] } = useBlockedUsers();
-
-  const conversations = allConversations.filter(
-    (conv) => !blockedUsers.some((b) => b.blocked_id === conv.partner?.id)
-  );
+  const conversations = allConversations;
 
   return (
     <Shell>

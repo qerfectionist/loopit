@@ -8,7 +8,7 @@ import { useMatches, useAcceptMatch, useDeclineMatch, useLikeItem } from '@/hook
 import { useWishlistMatches } from '@/hooks/useWishlist';
 import { useUserItems } from '@/hooks/useItems';
 import { useAppStore } from '@/stores/appStore';
-import { useBlockedUsers } from '@/hooks/useSafety';
+
 import type { Match, WishlistMatch } from '@/types';
 
 
@@ -256,18 +256,9 @@ export const MatchesPage = () => {
   const { data: matches, isLoading: matchesLoading } = useMatches(currentUser?.id);
   const { data: wishlistMatches = [], isLoading: wishlistLoading } = useWishlistMatches(currentUser?.id);
   const { data: myItems } = useUserItems(currentUser?.id);
-  const { data: blockedUsers = [] } = useBlockedUsers();
   const likeItem = useLikeItem();
-
-  const blockedUserIds = new Set(blockedUsers.map(b => b.blocked_id));
-
-  const displayMatches = (matches ?? []).filter(
-    m => !blockedUserIds.has(m.partner?.id ?? '')
-  );
-  
-  const displayWishlistMatches = wishlistMatches.filter(
-    wm => !blockedUserIds.has(wm.other_user_id)
-  );
+  const displayMatches = matches ?? [];
+  const displayWishlistMatches = wishlistMatches;
 
   const isLoading = matchesLoading || wishlistLoading;
 
@@ -275,7 +266,6 @@ export const MatchesPage = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['matches', currentUser?.id] }),
       queryClient.invalidateQueries({ queryKey: ['wishlist-matches', currentUser?.id] }),
-      queryClient.invalidateQueries({ queryKey: ['blocked_users', currentUser?.id] }),
     ]);
   };
 

@@ -12,7 +12,7 @@ import { useMatches, useLikeItem } from '@/hooks/useMatches';
 import { useExchanges } from '@/hooks/useExchanges';
 import { useAppStore } from '@/stores/appStore';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { useBlockedUsers } from '@/hooks/useSafety';
+
 import { haversineKm, formatDistance } from '@/lib/geo';
 import type { Item, ItemCondition } from '@/types';
 
@@ -187,7 +187,7 @@ export const ExplorePage = () => {
   const { data: matches = [] } = useMatches(currentUser?.id);
   const { data: exchanges = [] } = useExchanges(currentUser?.id);
   const { data: totalItems = 0 } = useItemsCount();
-  const { data: blockedUsers = [] } = useBlockedUsers();
+
   const likeItem = useLikeItem();
 
   // Flatten all pages into one array
@@ -198,8 +198,7 @@ export const ExplorePage = () => {
 
   // Filter out current user's items and blocked users, and apply client-side genre + distance sort
   const filteredBooks = useMemo(() => {
-    const blockedIds = new Set(blockedUsers.map(b => b.blocked_id));
-    let mine = allItems.filter((book) => book.user_id !== currentUser?.id && !blockedIds.has(book.user_id));
+    let mine = allItems.filter((book) => book.user_id !== currentUser?.id);
 
     if (genreFilter) {
       mine = mine.filter((book) => {
@@ -217,7 +216,7 @@ export const ExplorePage = () => {
       const dB = locB ? haversineKm(coords.lat, coords.lng, locB.lat, locB.lng) : Infinity;
       return dA - dB;
     });
-  }, [allItems, currentUser?.id, genreFilter, sortByDistance, coords, blockedUsers]);
+  }, [allItems, currentUser?.id, genreFilter, sortByDistance, coords]);
 
   const getDistance = (book: Item): number | undefined => {
     if (!coords) return undefined;
