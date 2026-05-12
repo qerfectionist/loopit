@@ -96,12 +96,6 @@ export const sendMessage = async (msg: {
     return null;
   }
 
-  // Update conversation timestamp
-  await supabase
-    .from('conversations')
-    .update({ last_message_at: new Date().toISOString() })
-    .eq('id', msg.conversation_id);
-
   return data as Message;
 };
 

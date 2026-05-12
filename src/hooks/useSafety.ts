@@ -72,7 +72,6 @@ export const useReportUser = () => {
     }) => {
       if (!currentUser) throw new Error('Not authenticated');
       return reportUser(
-        currentUser.id, 
         reportedId, 
         reason, 
         description,

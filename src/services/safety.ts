@@ -52,7 +52,6 @@ export const getBlockedUsers = async (blockerId: string): Promise<UserBlock[]> =
 };
 
 export const reportUser = async (
-  reporterId: string,
   reportedId: string,
   reason: string,
   description?: string,
@@ -60,17 +59,14 @@ export const reportUser = async (
   relatedConversationId?: string,
   relatedExchangeId?: string
 ): Promise<void> => {
-  const { error } = await supabase
-    .from('reports')
-    .insert({
-      reporter_id: reporterId,
-      reported_user_id: reportedId,
-      reason,
-      description,
-      related_item_id: relatedItemId,
-      related_conversation_id: relatedConversationId,
-      related_exchange_id: relatedExchangeId,
-    });
+  const { error } = await supabase.rpc('submit_report', {
+    p_reported_user_id: reportedId,
+    p_reason: reason,
+    p_description: description ?? null,
+    p_related_item_id: relatedItemId ?? null,
+    p_related_conversation_id: relatedConversationId ?? null,
+    p_related_exchange_id: relatedExchangeId ?? null,
+  });
 
   if (error) throw error;
 };
