@@ -25,6 +25,7 @@ export const getItems = async (opts?: {
     const { data, error } = await supabase.rpc('search_items', {
       p_query: search.trim(),
       p_category: category ?? null,
+      p_condition: condition ?? null,
       p_limit: limit,
       p_offset: offset,
     });
@@ -39,8 +40,7 @@ export const getItems = async (opts?: {
       user: item_user ?? item.user,
     })) as Item[];
 
-    // Apply condition filter client-side (rare case, low cost after FTS)
-    return condition ? results.filter((i) => i.condition === condition) : results;
+    return results;
   }
 
   // --- Browse path: regular query (no search) ---
