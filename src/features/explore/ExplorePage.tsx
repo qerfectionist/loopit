@@ -254,9 +254,7 @@ export const ExplorePage = () => {
     setLikedIds((prev) => new Set(prev).add(book.id));
     const myFirstItem = myItems?.[0] ?? null;
     likeItem.mutate({
-      likerUserId: currentUser.id,
       likerItemId: myFirstItem?.id ?? null,
-      ownerUserId: book.user_id,
       ownerItemId: book.id,
     });
   };

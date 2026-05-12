@@ -24,6 +24,35 @@ export const getConversations = async (userId: string): Promise<Conversation[]> 
   })) as Conversation[];
 };
 
+/** Get one conversation with partner info */
+export const getConversation = async (
+  conversationId: string,
+  userId: string
+): Promise<Conversation | null> => {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select(`
+      *,
+      partner_a:users!conversations_user_a_fkey(*),
+      partner_b:users!conversations_user_b_fkey(*)
+    `)
+    .eq('id', conversationId)
+    .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Chat] Fetch conversation failed:', error);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    ...data,
+    partner: data.user_a === userId ? data.partner_b : data.partner_a,
+  } as Conversation;
+};
+
 /** Get messages for a conversation */
 export const getMessages = async (
   conversationId: string,

@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { Match } from '@/types';
 
 /** Get matches for a user (both user_a and user_b) */
-export const getMatches = async (userId: string): Promise<Match[]> => {
+export const getMatches = async (userId: string, limit = 30): Promise<Match[]> => {
   const { data, error } = await supabase
     .from('matches')
     .select(`
@@ -15,7 +15,8 @@ export const getMatches = async (userId: string): Promise<Match[]> => {
     `)
     .or(`user_a.eq.${userId},user_b.eq.${userId}`)
     .in('status', ['pending', 'viewed', 'accepted'])
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
   if (error) {
     console.error('[Matches] Failed to fetch matches:', error);
@@ -60,9 +61,7 @@ export const acceptMatch = async (matchId: string): Promise<string | null> => {
  * User identity and item ownership are verified in the database.
  */
 export const createLike = async (opts: {
-  likerUserId: string;
   likerItemId: string | null;
-  ownerUserId: string;
   ownerItemId: string;
 }): Promise<{ id: string } | null> => {
   const { data, error } = await supabase.rpc('create_like', {

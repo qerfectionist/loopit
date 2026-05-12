@@ -46,7 +46,7 @@ export const ExchangeDetailPage = () => {
   const handleConfirm = () => {
     if (!currentUser) return;
     triggerHaptic('light');
-    confirmExchange.mutate({ exchangeId: exchange.id, userId: currentUser.id });
+    confirmExchange.mutate(exchange.id);
   };
 
   const handleCancel = () => {

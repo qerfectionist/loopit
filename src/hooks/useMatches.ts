@@ -55,9 +55,7 @@ export const useLikeItem = () => {
 
   return useMutation({
     mutationFn: (opts: {
-      likerUserId: string;
       likerItemId: string | null;
-      ownerUserId: string;
       ownerItemId: string;
     }) => createLike(opts),
     onSuccess: () => {

@@ -19,7 +19,6 @@ export const useChatMessages = (conversationId: string | undefined) => {
     queryKey: ['messages', conversationId],
     queryFn: () => getMessages(conversationId!),
     enabled: !!conversationId,
-    refetchInterval: 1000 * 5,
   });
 };
 

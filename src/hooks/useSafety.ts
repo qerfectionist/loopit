@@ -27,6 +27,7 @@ export const useBlockUser = () => {
       queryClient.invalidateQueries({ queryKey: ['conversations', currentUser?.id] });
       queryClient.invalidateQueries({ queryKey: ['explore'] });
       queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
     },
   });
 };
@@ -45,6 +46,7 @@ export const useUnblockUser = () => {
       queryClient.invalidateQueries({ queryKey: ['conversations', currentUser?.id] });
       queryClient.invalidateQueries({ queryKey: ['explore'] });
       queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
     },
   });
 };

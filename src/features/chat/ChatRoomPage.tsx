@@ -8,7 +8,7 @@ import { triggerHaptic } from '@/lib/telegram';
 import { useChatMessages, useSendMessage, useMarkRead, useRealtimeMessages } from '@/hooks/useChat';
 import { useTypingPresence } from '@/hooks/useTypingPresence';
 import { useAppStore } from '@/stores/appStore';
-import { getConversations } from '@/services/chat';
+import { getConversation } from '@/services/chat';
 import type { Conversation } from '@/types';
 import { useBlockUser, useReportUser } from '@/hooks/useSafety';
 
@@ -39,10 +39,7 @@ export const ChatRoomPage = () => {
   // Load conversation details (partner info)
   useEffect(() => {
     if (!currentUser?.id || !conversationId) return;
-    getConversations(currentUser.id).then((convos) => {
-      const found = convos.find((c) => c.id === conversationId);
-      if (found) setConv(found);
-    });
+    getConversation(conversationId, currentUser.id).then(setConv);
   }, [currentUser?.id, conversationId]);
 
   // Mark messages as read on enter

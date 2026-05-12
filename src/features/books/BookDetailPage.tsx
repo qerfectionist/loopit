@@ -61,9 +61,7 @@ export const BookDetailPage = () => {
     setLiked(true);
     triggerNotification('success');
     likeItem.mutate({
-      likerUserId: currentUser.id,
       likerItemId: null,
-      ownerUserId: book.user_id,
       ownerItemId: book.id,
     });
   };

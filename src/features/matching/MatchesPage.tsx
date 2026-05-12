@@ -273,9 +273,7 @@ export const MatchesPage = () => {
     if (!currentUser) return;
     const myFirstItem = myItems?.[0] ?? null;
     likeItem.mutate({
-      likerUserId: currentUser.id,
       likerItemId: myFirstItem?.id ?? null,
-      ownerUserId: suggestion.other_user_id,
       ownerItemId: suggestion.their_item_id,
     });
   };
