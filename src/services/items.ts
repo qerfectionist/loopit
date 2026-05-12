@@ -1,6 +1,11 @@
 import { supabase } from '@/lib/supabase';
 import type { Item, ItemCategory, ExchangeType, ItemCondition } from '@/types';
 
+type SearchItemRow = Item & {
+  item_user?: Item['user'];
+  rank?: number;
+};
+
 /** Fetch paginated list of active items with user data.
  *  When `search` is provided (≥2 chars), uses PostgreSQL FTS via search_items RPC
  *  with ts_rank_cd ranking (title > author > description).
@@ -29,8 +34,12 @@ export const getItems = async (opts?: {
       return [];
     }
 
+    const results = ((data ?? []) as SearchItemRow[]).map(({ item_user, ...item }) => ({
+      ...item,
+      user: item_user ?? item.user,
+    })) as Item[];
+
     // Apply condition filter client-side (rare case, low cost after FTS)
-    const results = (data ?? []) as Item[];
     return condition ? results.filter((i) => i.condition === condition) : results;
   }
 
