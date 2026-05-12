@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BookOpen, Repeat2, DollarSign, Star, MessageCircle, Share2, Heart, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Repeat2, DollarSign, Star, Share2, Heart, Loader2 } from 'lucide-react';
 import { Shell } from '@/components/layout';
 import { Button, Avatar, Badge, Card } from '@/components/ui';
 import { triggerHaptic, triggerNotification } from '@/lib/telegram';
@@ -57,13 +57,35 @@ export const BookDetailPage = () => {
   const hasImage = book.images && book.images.length > 0 && book.images[0];
 
   const handleLike = () => {
-    if (!currentUser || liked || isOwner) return;
+    if (!currentUser || liked || isOwner || likeItem.isPending) return;
     setLiked(true);
-    triggerNotification('success');
     likeItem.mutate({
       likerItemId: null,
       ownerItemId: book.id,
+    }, {
+      onSuccess: () => {
+        triggerNotification('success');
+      },
+      onError: () => {
+        setLiked(false);
+        triggerNotification('error');
+      },
     });
+  };
+
+  const handleShare = async () => {
+    triggerHaptic('light');
+    const shareUrl = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: book.title, text: book.author ?? undefined, url: shareUrl });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        triggerNotification('success');
+      }
+    } catch {
+      triggerNotification('warning');
+    }
   };
 
   return (
@@ -85,7 +107,11 @@ export const BookDetailPage = () => {
 
         {/* Actions */}
         <div className="absolute top-4 right-4 flex gap-2 z-10">
-          <button className="w-10 h-10 glass rounded-full flex items-center justify-center">
+          <button
+            className="w-10 h-10 glass rounded-full flex items-center justify-center"
+            onClick={handleShare}
+            aria-label="Share book"
+          >
             <Share2 size={18} className="text-white" />
           </button>
           {!isOwner && (
@@ -96,7 +122,8 @@ export const BookDetailPage = () => {
                   : 'glass text-white'
               }`}
               onClick={handleLike}
-              disabled={liked}
+              disabled={liked || likeItem.isPending}
+              aria-label="Save interest"
             >
               <Heart size={18} className={liked ? 'fill-current' : ''} />
             </button>
@@ -199,6 +226,8 @@ export const BookDetailPage = () => {
                 fullWidth
                 size="lg"
                 icon={<Repeat2 size={18} />}
+                loading={likeItem.isPending}
+                disabled={liked}
                 onClick={() => {
                   handleLike();
                 }}
@@ -212,18 +241,16 @@ export const BookDetailPage = () => {
                 fullWidth
                 size="lg"
                 icon={<DollarSign size={18} />}
-                onClick={() => { triggerHaptic('medium'); }}
+                loading={likeItem.isPending}
+                disabled={liked}
+                onClick={() => {
+                  triggerHaptic('medium');
+                  handleLike();
+                }}
               >
-                Buy ${book.price}
+                Request to Buy
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="lg"
-              icon={<MessageCircle size={18} />}
-              onClick={() => { triggerHaptic('light'); }}
-              className="flex-shrink-0"
-            />
           </div>
         )}
       </motion.div>

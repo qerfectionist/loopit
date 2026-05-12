@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, User, MapPin, Bell, Shield, HelpCircle,
-  LogOut, ChevronRight, Check, Loader2, Camera,
+  LogOut, ChevronRight, Check, Loader2,
 } from 'lucide-react';
 import { Shell, PageHeader } from '@/components/layout';
 import { Card, Input, Avatar } from '@/components/ui';
-import { triggerHaptic, triggerNotification } from '@/lib/telegram';
+import { showAlert, triggerHaptic, triggerNotification } from '@/lib/telegram';
 import { useAppStore } from '@/stores/appStore';
 import { useUpdateProfile } from '@/hooks/useAuth';
 
@@ -60,17 +60,11 @@ const EditProfileForm = ({ onClose }: { onClose: () => void }) => {
       <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5">
         {/* Avatar */}
         <div className="flex flex-col items-center gap-3 mb-2">
-          <div className="relative">
-            <Avatar
-              name={form.first_name}
-              lastName={form.last_name}
-              size="xl"
-            />
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-accent rounded-full flex items-center justify-center shadow-lg">
-              <Camera size={14} className="text-white" />
-            </div>
-          </div>
-          <p className="text-[13px] text-text-secondary">Tap to change photo</p>
+          <Avatar
+            name={form.first_name}
+            lastName={form.last_name}
+            size="xl"
+          />
         </div>
 
         {/* Form fields */}
@@ -141,6 +135,11 @@ export const SettingsPage = () => {
     navigate('/', { replace: true });
   };
 
+  const showComingSoon = (message: string) => {
+    triggerHaptic('light');
+    void showAlert(message);
+  };
+
   const sections = [
     {
       title: 'Account',
@@ -155,7 +154,7 @@ export const SettingsPage = () => {
           icon: <MapPin size={18} />,
           label: 'Location',
           sub: 'Set your area',
-          onClick: () => triggerHaptic('light'),
+          onClick: () => showComingSoon('Location settings are not available yet.'),
         },
       ],
     },
@@ -166,7 +165,7 @@ export const SettingsPage = () => {
           icon: <Bell size={18} />,
           label: 'Notifications',
           sub: 'Match alerts, messages',
-          onClick: () => triggerHaptic('light'),
+          onClick: () => showComingSoon('Notification settings are not available yet.'),
         },
       ],
     },
@@ -177,12 +176,12 @@ export const SettingsPage = () => {
           icon: <HelpCircle size={18} />,
           label: 'Help & FAQ',
           sub: 'How Loopit works',
-          onClick: () => triggerHaptic('light'),
+          onClick: () => showComingSoon('Help & FAQ is not available yet.'),
         },
         {
           icon: <Shield size={18} />,
           label: 'Privacy & Terms',
-          onClick: () => triggerHaptic('light'),
+          onClick: () => showComingSoon('Privacy & Terms is not available yet.'),
         },
       ],
     },
