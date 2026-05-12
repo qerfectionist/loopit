@@ -1,6 +1,8 @@
 -- Avoid reserved output parameter name "user" in the search_items RPC.
 -- The frontend maps item_user back to Item.user after receiving RPC rows.
 
+DROP FUNCTION IF EXISTS public.search_items(text, text, int, int);
+
 CREATE OR REPLACE FUNCTION public.search_items(
   p_query text DEFAULT NULL,
   p_category text DEFAULT NULL,
