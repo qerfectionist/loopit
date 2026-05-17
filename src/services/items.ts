@@ -15,10 +15,11 @@ export const getItems = async (opts?: {
   search?: string;
   category?: ItemCategory;
   condition?: ItemCondition;
+  genre?: string;
   limit?: number;
   offset?: number;
 }): Promise<Item[]> => {
-  const { search, category, condition, limit = 20, offset = 0 } = opts ?? {};
+  const { search, category, condition, genre, limit = 20, offset = 0 } = opts ?? {};
 
   // --- FTS path: use RPC for ranked search ---
   if (search && search.trim().length >= 2) {
@@ -26,6 +27,7 @@ export const getItems = async (opts?: {
       p_query: search.trim(),
       p_category: category ?? null,
       p_condition: condition ?? null,
+      p_genre: genre || null,
       p_limit: limit,
       p_offset: offset,
     });
@@ -53,6 +55,7 @@ export const getItems = async (opts?: {
 
   if (category) query = query.eq('category', category);
   if (condition) query = query.eq('condition', condition);
+  if (genre) query = query.eq('metadata->>genre', genre);
 
   const { data, error } = await query;
 

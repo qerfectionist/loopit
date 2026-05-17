@@ -9,6 +9,7 @@ export const useInfiniteItems = (opts?: {
   search?: string;
   category?: ItemCategory;
   condition?: ItemCondition;
+  genre?: string;
 }) => {
   return useInfiniteQuery({
     queryKey: ['items-infinite', opts],
@@ -26,6 +27,7 @@ export const useItems = (opts?: {
   search?: string;
   category?: ItemCategory;
   condition?: ItemCondition;
+  genre?: string;
   limit?: number;
   offset?: number;
 }) => {

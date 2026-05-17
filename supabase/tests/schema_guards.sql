@@ -80,15 +80,15 @@ BEGIN
     v_failures := array_append(v_failures, 'public find_wishlist_matches wrapper is SECURITY DEFINER');
   END IF;
 
-  -- Search must filter condition inside SQL before LIMIT/OFFSET.
+  -- Search must filter condition and genre inside SQL before LIMIT/OFFSET.
   IF NOT EXISTS (
     SELECT 1
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.oid::regprocedure::text = 'search_items(text,text,text,integer,integer)'
+      AND p.oid::regprocedure::text = 'search_items(text,text,text,text,integer,integer)'
   ) THEN
-    v_failures := array_append(v_failures, 'missing search_items p_condition signature');
+    v_failures := array_append(v_failures, 'missing search_items p_condition/p_genre signature');
   END IF;
 
   IF EXISTS (
@@ -96,7 +96,10 @@ BEGIN
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.oid::regprocedure::text = 'search_items(text,text,integer,integer)'
+      AND p.oid::regprocedure::text IN (
+        'search_items(text,text,integer,integer)',
+        'search_items(text,text,text,integer,integer)'
+      )
   ) THEN
     v_failures := array_append(v_failures, 'old search_items signature still exists');
   END IF;
@@ -106,12 +109,26 @@ BEGIN
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public'
-    AND p.oid::regprocedure::text = 'search_items(text,text,text,integer,integer)';
+    AND p.oid::regprocedure::text = 'search_items(text,text,text,text,integer,integer)';
 
   IF v_definition IS NULL THEN
     v_failures := array_append(v_failures, 'cannot inspect search_items definition');
   ELSIF position('i.condition = p_condition' in v_definition) = 0 THEN
     v_failures := array_append(v_failures, 'search_items does not filter condition in SQL');
+  ELSIF position('i.metadata->>''genre'' = p_genre' in v_definition) = 0 THEN
+    v_failures := array_append(v_failures, 'search_items does not filter genre in SQL');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'items'
+      AND indexname = 'idx_items_active_metadata_genre'
+      AND indexdef LIKE '%metadata ->> ''genre''::text%'
+      AND indexdef LIKE '%WHERE (status = ''active''::text)%'
+  ) THEN
+    v_failures := array_append(v_failures, 'missing active item genre index');
   END IF;
 
   -- Message insert should update the conversation timestamp atomically.

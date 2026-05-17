@@ -181,6 +181,7 @@ export const ExplorePage = () => {
   } = useInfiniteItems({
     search: debouncedSearch || undefined,
     condition: conditionFilter !== 'all' ? conditionFilter : undefined,
+    genre: genreFilter || undefined,
   });
 
   const { data: myItems } = useUserItems(currentUser?.id);
@@ -196,16 +197,9 @@ export const ExplorePage = () => {
     [infiniteData],
   );
 
-  // Filter out current user's items and blocked users, and apply client-side genre + distance sort
+  // Filter out current user's items and apply optional distance sort
   const filteredBooks = useMemo(() => {
-    let mine = allItems.filter((book) => book.user_id !== currentUser?.id);
-
-    if (genreFilter) {
-      mine = mine.filter((book) => {
-        const g = (book.metadata as { genre?: string } | null)?.genre;
-        return g === genreFilter;
-      });
-    }
+    const mine = allItems.filter((book) => book.user_id !== currentUser?.id);
 
     if (!sortByDistance || !coords) return mine;
 
@@ -216,7 +210,7 @@ export const ExplorePage = () => {
       const dB = locB ? haversineKm(coords.lat, coords.lng, locB.lat, locB.lng) : Infinity;
       return dA - dB;
     });
-  }, [allItems, currentUser?.id, genreFilter, sortByDistance, coords]);
+  }, [allItems, currentUser?.id, sortByDistance, coords]);
 
   const getDistance = (book: Item): number | undefined => {
     if (!coords) return undefined;
