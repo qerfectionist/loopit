@@ -1,6 +1,12 @@
 /** Get the Telegram WebApp instance */
 export const getTelegram = () => window.Telegram?.WebApp;
 
+const TELEGRAM_HEADER_COLOR = '#ffffff';
+const TELEGRAM_BACKGROUND_COLOR = '#ffffff';
+const TELEGRAM_BOTTOM_BAR_COLOR = '#ffffff';
+const TELEGRAM_MAIN_BUTTON_COLOR = '#08642f';
+const TELEGRAM_MAIN_BUTTON_TEXT_COLOR = '#ffffff';
+
 /** Check if running inside Telegram */
 export const isTelegramWebApp = () => !!window.Telegram?.WebApp?.initData;
 
@@ -10,8 +16,13 @@ export const initTelegram = () => {
   if (tg) {
     tg.ready();
     tg.expand();
-    tg.setHeaderColor('#0A0A0A');
-    tg.setBackgroundColor('#0A0A0A');
+    tg.setHeaderColor(TELEGRAM_HEADER_COLOR);
+    tg.setBackgroundColor(TELEGRAM_BACKGROUND_COLOR);
+    tg.setBottomBarColor?.(TELEGRAM_BOTTOM_BAR_COLOR);
+    tg.MainButton.setParams({
+      color: TELEGRAM_MAIN_BUTTON_COLOR,
+      text_color: TELEGRAM_MAIN_BUTTON_TEXT_COLOR,
+    });
     // Prevent Telegram swipe-to-close from conflicting with PullToRefresh
     tg.disableVerticalSwipes?.();
   }
