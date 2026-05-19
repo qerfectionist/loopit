@@ -1,56 +1,83 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, BookOpen, ArrowUpRight, Sparkles, Heart, Filter, X, MapPin, ArrowUpDown, Loader2 } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ArrowUpRight,
+  BookOpen,
+  Filter,
+  Heart,
+  Loader2,
+  MapPin,
+  Plus,
+  Repeat2,
+  Search,
+  Sparkles,
+  X,
+} from 'lucide-react';
 
 import { Shell } from '@/components/layout';
-import { Card, Badge, Button, Avatar, SkeletonCard, PullToRefresh } from '@/components/ui';
-import { triggerHaptic, triggerNotification } from '@/lib/telegram';
-import { conditionLabels, conditionColors } from '@/lib/utils';
-import { useInfiniteItems, useUserItems, useItemsCount } from '@/hooks/useItems';
-import { useDebounce } from '@/hooks/useDebounce';
-import { useMatches, useLikeItem } from '@/hooks/useMatches';
+import { Avatar, Button, PullToRefresh, SkeletonCard } from '@/components/ui';
 import { useExchanges } from '@/hooks/useExchanges';
-import { useAppStore } from '@/stores/appStore';
 import { useGeolocation } from '@/hooks/useGeolocation';
-
-import { haversineKm, formatDistance } from '@/lib/geo';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useInfiniteItems, useItemsCount, useUserItems } from '@/hooks/useItems';
+import { useLikeItem, useMatches } from '@/hooks/useMatches';
+import { formatDistance, haversineKm } from '@/lib/geo';
+import { triggerHaptic, triggerNotification } from '@/lib/telegram';
+import { cn } from '@/lib/utils';
+import { useAppStore } from '@/stores/appStore';
 import type { Item, ItemCondition } from '@/types';
 
+const conditionLabelsRu: Record<string, string> = {
+  new: 'Новое',
+  like_new: 'Как новое',
+  good: 'Хорошее',
+  fair: 'Нормальное',
+};
+
 const CONDITION_FILTERS: { value: ItemCondition | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'new', label: '✨ New' },
-  { value: 'like_new', label: '📗 Like New' },
-  { value: 'good', label: '📘 Good' },
-  { value: 'fair', label: '📙 Fair' },
+  { value: 'all', label: 'Все' },
+  { value: 'new', label: 'Новое' },
+  { value: 'like_new', label: 'Как новое' },
+  { value: 'good', label: 'Хорошее' },
+  { value: 'fair', label: 'Нормальное' },
 ];
 
 const GENRE_FILTERS = [
-  { value: 'fiction', label: '📖 Fiction' },
-  { value: 'non-fiction', label: '📚 Non-Fiction' },
-  { value: 'sci-fi', label: '🚀 Sci-Fi' },
-  { value: 'fantasy', label: '🧙 Fantasy' },
-  { value: 'mystery', label: '🔍 Mystery' },
-  { value: 'romance', label: '💕 Romance' },
-  { value: 'thriller', label: '😱 Thriller' },
-  { value: 'biography', label: '👤 Biography' },
-  { value: 'history', label: '🏛️ History' },
-  { value: 'science', label: '🔬 Science' },
-  { value: 'self-help', label: '💡 Self-Help' },
-  { value: 'children', label: '🧒 Children' },
+  { value: 'fiction', label: 'Художественная' },
+  { value: 'non-fiction', label: 'Нон-фикшн' },
+  { value: 'sci-fi', label: 'Фантастика' },
+  { value: 'fantasy', label: 'Фэнтези' },
+  { value: 'mystery', label: 'Детектив' },
+  { value: 'romance', label: 'Романтика' },
+  { value: 'thriller', label: 'Триллер' },
+  { value: 'biography', label: 'Биография' },
+  { value: 'history', label: 'История' },
+  { value: 'science', label: 'Наука' },
+  { value: 'self-help', label: 'Саморазвитие' },
+  { value: 'children', label: 'Детская' },
 ];
 
-/** Book cover gradient based on title hash */
 const getCoverGradient = (title: string) => {
-  const hash = title.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const hash = title.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const gradients = [
-    'from-indigo-600/40 to-purple-800/40',
-    'from-rose-600/40 to-pink-800/40',
-    'from-emerald-600/40 to-teal-800/40',
-    'from-amber-600/40 to-orange-800/40',
-    'from-cyan-600/40 to-sky-800/40',
-    'from-violet-600/40 to-fuchsia-800/40',
+    'from-emerald-100 to-lime-50',
+    'from-amber-100 to-orange-50',
+    'from-sky-100 to-emerald-50',
+    'from-rose-100 to-stone-50',
   ];
   return gradients[hash % gradients.length]!;
+};
+
+const getExchangeLabel = (item: Item) => {
+  if (item.exchange_type === 'sell') return item.price ? `${item.price}` : 'Продажа';
+  if (item.exchange_type === 'both') return 'Обмен / продажа';
+  return 'Обмен';
+};
+
+const getResultTitle = (searchQuery: string, sortByDistance: boolean) => {
+  if (searchQuery.trim()) return `Результаты: ${searchQuery.trim()}`;
+  return sortByDistance ? 'Ближе всего' : 'Книги рядом';
 };
 
 const BookCard = ({
@@ -69,92 +96,75 @@ const BookCard = ({
   distance?: number;
 }) => {
   const navigate = useNavigate();
-  const hasImage = book.images && book.images.length > 0 && book.images[0];
+  const image = book.images?.[0];
 
   return (
-    <div className="animate-book-card" style={{ animationDelay: `${Math.min(index, 11) * 0.06}s` }}>
-      <Card
-        hover
-        padding={false}
-        className="overflow-hidden"
-        onClick={() => {
-          triggerHaptic('light');
-          navigate(`/book/${book.id}`);
-        }}
-      >
-        {/* Book cover */}
-        <div className={`h-36 ${hasImage ? '' : `bg-gradient-to-br ${getCoverGradient(book.title)}`} flex items-center justify-center relative overflow-hidden`}>
-          {hasImage ? (
-            <img
-              src={book.images[0]}
-              alt={book.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <BookOpen size={40} className="text-white/30" />
+    <button
+      type="button"
+      onClick={() => {
+        triggerHaptic('light');
+        navigate(`/book/${book.id}`);
+      }}
+      className="animate-book-card overflow-hidden rounded-2xl border border-[#e6e8ed] bg-white text-left shadow-[0_10px_30px_rgba(15,23,42,0.04)] active:scale-[0.99]"
+      style={{ animationDelay: `${Math.min(index, 11) * 0.05}s` }}
+    >
+      <div className={cn('relative flex h-[150px] items-center justify-center bg-gradient-to-br', !image && getCoverGradient(book.title))}>
+        {image ? (
+          <img src={image} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <BookOpen size={46} className="text-[#0b6b35]/35" />
+        )}
+
+        <span className="absolute left-3 top-3 inline-flex h-8 items-center gap-1.5 rounded-full bg-white/90 px-3 text-[12px] font-semibold text-[#0b6b35] shadow-sm backdrop-blur">
+          <Repeat2 size={14} />
+          {getExchangeLabel(book)}
+        </span>
+
+        <button
+          type="button"
+          className={cn(
+            'absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/45 shadow-sm backdrop-blur transition',
+            isLiked ? 'bg-[#e83e75] text-white' : 'bg-white/88 text-[#344054]',
+            isLiking ? 'opacity-70' : 'active:scale-95',
           )}
-          <div className="absolute top-2.5 right-2.5">
-            <Badge variant={book.exchange_type === 'exchange' ? 'accent' : book.exchange_type === 'sell' ? 'warning' : 'success'} size="sm">
-              {book.exchange_type === 'exchange' ? '↔' : book.exchange_type === 'sell' ? `$${book.price}` : '↔/$'}
-            </Badge>
-          </div>
-          {/* Like button */}
-          <button
-            className={`absolute bottom-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
-              isLiked
-                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30'
-                : 'bg-black/30 text-white/70 hover:bg-black/50 hover:text-white'
-            } ${isLiking ? 'opacity-70' : 'active:scale-95'}`}
-            onClick={onLike}
-            disabled={isLiking || isLiked}
-          >
-            <Heart size={15} className={isLiked ? 'fill-current' : ''} />
-          </button>
-        </div>
+          onClick={onLike}
+          disabled={isLiking || isLiked}
+          aria-label="Добавить в избранное"
+        >
+          <Heart size={18} className={isLiked ? 'fill-current' : ''} />
+        </button>
+      </div>
 
-        {/* Content */}
-        <div className="p-3.5">
-          <h3 className="text-[15px] font-semibold leading-tight line-clamp-1">
-            {book.title}
-          </h3>
-          <p className="text-[13px] text-text-secondary mt-0.5 line-clamp-1">
-            {book.author}
-          </p>
+      <div className="p-4">
+        <h3 className="line-clamp-1 text-[17px] font-bold leading-tight text-[#101828]">{book.title}</h3>
+        <p className="mt-1 line-clamp-1 text-[14px] text-[#667085]">{book.author ?? 'Автор не указан'}</p>
 
-          <div className="flex items-center justify-between mt-3">
-            <div className="flex items-center gap-1.5">
-              <Avatar
-                name={book.user?.first_name ?? '?'}
-                lastName={book.user?.last_name}
-                size="sm"
-              />
-              <div className="flex flex-col">
-                <span className="text-[12px] text-text-secondary leading-tight">
-                  {book.user?.first_name}
-                </span>
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Avatar name={book.user?.first_name ?? '?'} lastName={book.user?.last_name} size="sm" />
+            <div className="min-w-0">
+              <p className="line-clamp-1 text-[13px] font-medium text-[#344054]">{book.user?.first_name ?? 'Пользователь'}</p>
+              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#667085]">
                 {distance !== undefined ? (
-                  <span className="text-[10px] text-accent leading-tight flex items-center gap-0.5">
-                    <MapPin size={9} />{formatDistance(distance)}
-                  </span>
+                  <>
+                    <MapPin size={12} />
+                    {formatDistance(distance)}
+                  </>
                 ) : (
-                  <span className="text-[10px] text-text-muted leading-tight">
-                    ★ {book.user?.rating?.toFixed(1)}
-                  </span>
+                  <>★ {book.user?.rating?.toFixed(1) ?? '0.0'}</>
                 )}
-              </div>
+              </p>
             </div>
-
-            <span className={`text-[11px] font-medium ${conditionColors[book.condition]}`}>
-              {conditionLabels[book.condition]}
-            </span>
           </div>
+
+          <span className="shrink-0 text-[12px] font-semibold text-[#0b6b35]">
+            {conditionLabelsRu[book.condition] ?? 'Состояние'}
+          </span>
         </div>
-      </Card>
-    </div>
+      </div>
+    </button>
   );
 };
-
 
 export const ExplorePage = () => {
   const navigate = useNavigate();
@@ -168,9 +178,7 @@ export const ExplorePage = () => {
   const { coords } = useGeolocation(currentUser?.id);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Debounce search — prevents a DB call on every keystroke
   const debouncedSearch = useDebounce(searchQuery, 350);
-
   const {
     data: infiniteData,
     isLoading,
@@ -188,22 +196,16 @@ export const ExplorePage = () => {
   const { data: matches = [] } = useMatches(currentUser?.id);
   const { data: exchanges = [] } = useExchanges(currentUser?.id);
   const { data: totalItems = 0 } = useItemsCount();
-
   const likeItem = useLikeItem();
 
-  // Flatten all pages into one array
-  const allItems = useMemo(
-    () => (infiniteData?.pages ?? []).flat(),
-    [infiniteData],
-  );
+  const allItems = useMemo(() => (infiniteData?.pages ?? []).flat(), [infiniteData]);
 
-  // Filter out current user's items and apply optional distance sort
   const filteredBooks = useMemo(() => {
-    const mine = allItems.filter((book) => book.user_id !== currentUser?.id);
+    const otherUsersBooks = allItems.filter((book) => book.user_id !== currentUser?.id);
 
-    if (!sortByDistance || !coords) return mine;
+    if (!sortByDistance || !coords) return otherUsersBooks;
 
-    return [...mine].sort((a, b) => {
+    return [...otherUsersBooks].sort((a, b) => {
       const locA = a.user?.location as { lat: number; lng: number } | null;
       const locB = b.user?.location as { lat: number; lng: number } | null;
       const dA = locA ? haversineKm(coords.lat, coords.lng, locA.lat, locA.lng) : Infinity;
@@ -219,11 +221,9 @@ export const ExplorePage = () => {
     return haversineKm(coords.lat, coords.lng, loc.lat, loc.lng);
   };
 
-  // Stats
   const pendingMatches = matches.filter((m) => m.status === 'pending').length;
   const completedExchanges = exchanges.filter((e) => e.status === 'completed').length;
 
-  // Intersection Observer for infinite scroll sentinel
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
@@ -244,6 +244,7 @@ export const ExplorePage = () => {
   const handleLike = (book: Item, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser || likedIds.has(book.id)) return;
+
     triggerNotification('success');
     setLikedIds((prev) => new Set(prev).add(book.id));
     const myFirstItem = myItems?.[0] ?? null;
@@ -258,236 +259,274 @@ export const ExplorePage = () => {
   };
 
   return (
-    <Shell>
-      {/* Header */}
-      <div className="px-5 pt-4 pb-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight">
-              <span className="gradient-text">Loopit</span>
-            </h1>
-            <p className="text-[13px] text-text-secondary -mt-0.5">
-              Exchange books with people near you
-            </p>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<Plus size={16} />}
-            onClick={() => navigate('/add-book')}
-          >
-            Add
-          </Button>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="px-5 py-3">
-        <div className="relative flex gap-2">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              id="search-books"
-              type="text"
-              placeholder="Search books, authors..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 rounded-xl text-[14px]
-                bg-bg-tertiary text-text-primary placeholder-text-muted
-                border border-border focus:border-accent
-                outline-none transition-colors duration-150"
-            />
-            {searchQuery && (
+    <Shell className="bg-white text-[#101828]">
+      <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-white pb-7">
+        <header className="sticky top-0 z-20 bg-white/92 px-5 pb-3 pt-4 backdrop-blur-xl">
+          <div className="flex items-center justify-between">
+            <div>
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                type="button"
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 text-[25px] font-bold text-[#2d7a45]"
+                aria-label="Loopit"
               >
-                <X size={16} />
+                <Repeat2 size={25} />
+                Loopit
               </button>
-            )}
-          </div>
-          <button
-            onClick={() => { triggerHaptic('light'); setShowFilters(!showFilters); }}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${
-              showFilters || conditionFilter !== 'all'
-                ? 'bg-accent/10 border-accent text-accent'
-                : 'bg-bg-tertiary border-border text-text-muted'
-            }`}
-          >
-            <Filter size={18} />
-          </button>
-        </div>
+              <p className="mt-1 text-[14px] text-[#667085]">Обмен книгами рядом с вами</p>
+            </div>
 
-        {/* Filters */}
-        <div
-          className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
-            showFilters ? 'max-h-56 opacity-100' : 'max-h-0 opacity-0'
-          }`}
-        >
-          <div className="flex gap-2 pt-2.5 overflow-x-auto scrollbar-hide">
-            {CONDITION_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => { triggerHaptic('light'); setConditionFilter(f.value); }}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
-                  conditionFilter === f.value
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2 pt-1.5 overflow-x-auto scrollbar-hide">
             <button
-              onClick={() => { triggerHaptic('light'); setGenreFilter(''); }}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
-                genreFilter === ''
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-              }`}
+              type="button"
+              onClick={() => navigate('/add-book')}
+              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#08642f] px-4 text-[15px] font-semibold text-white shadow-[0_12px_24px_rgba(8,100,47,0.22)] active:scale-[0.98]"
             >
-              All Genres
+              <Plus size={18} />
+              Добавить
             </button>
-            {GENRE_FILTERS.map((g) => (
-              <button
-                key={g.value}
-                onClick={() => { triggerHaptic('light'); setGenreFilter(genreFilter === g.value ? '' : g.value); }}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors ${
-                  genreFilter === g.value
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                }`}
-              >
-                {g.label}
-              </button>
-            ))}
           </div>
-        </div>
-      </div>
+        </header>
 
-      {/* Quick stats */}
-      <div className="px-5 pb-3">
-        <div className="flex gap-2">
-          <div
-            className="flex-1 bg-accent-soft/60 rounded-xl p-3 border border-accent/10 cursor-pointer active:scale-[0.98] transition-transform"
-            onClick={() => { triggerHaptic('light'); navigate('/matches'); }}
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              <Sparkles size={14} className="text-accent" />
-              <span className="text-[11px] font-medium text-accent-text">New Matches</span>
-            </div>
-            <span className="text-[20px] font-bold text-accent">{pendingMatches}</span>
-          </div>
-          <div className="flex-1 bg-bg-secondary rounded-xl p-3 border border-border">
-            <div className="flex items-center gap-1.5 mb-1">
-              <BookOpen size={14} className="text-text-secondary" />
-              <span className="text-[11px] font-medium text-text-secondary">Available</span>
-            </div>
-            <span className="text-[20px] font-bold">{totalItems}</span>
-          </div>
-          <div
-            className="flex-1 bg-bg-secondary rounded-xl p-3 border border-border cursor-pointer active:scale-[0.98] transition-transform"
-            onClick={() => { triggerHaptic('light'); navigate('/exchanges'); }}
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              <ArrowUpRight size={14} className="text-success" />
-              <span className="text-[11px] font-medium text-text-secondary">Exchanges</span>
-            </div>
-            <span className="text-[20px] font-bold text-success">{completedExchanges}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Book grid — wrapped in PullToRefresh */}
-      <PullToRefresh onRefresh={handleRefresh}>
-        <div className="px-5 pb-3">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[16px] font-semibold">
-              {searchQuery ? `Results for "${searchQuery}"` : sortByDistance ? 'Nearest to you' : 'Near you'}
-            </h2>
-            <div className="flex items-center gap-2">
-              {coords && (
+        <section className="px-5">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={21} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#98a2b3]" />
+              <input
+                id="search-books"
+                type="text"
+                placeholder="Книги, авторы..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-12 w-full rounded-2xl border border-[#eaecf0] bg-[#f8fafc] pl-12 pr-10 text-[16px] text-[#101828] outline-none transition focus:border-[#0b6b35] focus:bg-white"
+              />
+              {searchQuery && (
                 <button
-                  onClick={() => { triggerHaptic('light'); setSortByDistance((v) => !v); }}
-                  className={`flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-lg border transition-colors ${
-                    sortByDistance
-                      ? 'bg-accent/10 text-accent border-accent/30'
-                      : 'bg-bg-secondary text-text-muted border-border'
-                  }`}
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#667085]"
+                  aria-label="Очистить поиск"
                 >
-                  <ArrowUpDown size={12} />
-                  {sortByDistance ? 'Nearest' : 'Recent'}
+                  <X size={18} />
                 </button>
               )}
-              <span className="text-[13px] text-text-muted">{filteredBooks.length} books</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                setShowFilters((v) => !v);
+              }}
+              className={cn(
+                'flex h-12 w-12 items-center justify-center rounded-2xl border transition',
+                showFilters || conditionFilter !== 'all' || genreFilter
+                  ? 'border-[#0b6b35] bg-[#eaf6ee] text-[#0b6b35]'
+                  : 'border-[#eaecf0] bg-[#f8fafc] text-[#667085]',
+              )}
+              aria-label="Фильтры"
+            >
+              <Filter size={21} />
+            </button>
           </div>
 
-          {/* Skeleton loading grid */}
-          {isLoading && (
-            <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonCard key={i} />
+          <div
+            className={cn(
+              'overflow-hidden transition-[max-height,opacity] duration-300 ease-out',
+              showFilters ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0',
+            )}
+          >
+            <div className="flex gap-2 overflow-x-auto pb-1 pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {CONDITION_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setConditionFilter(filter.value);
+                  }}
+                  className={cn(
+                    'shrink-0 rounded-full border px-4 py-2 text-[13px] font-medium transition',
+                    conditionFilter === filter.value
+                      ? 'border-[#0b6b35] bg-[#0b6b35] text-white'
+                      : 'border-[#eaecf0] bg-white text-[#667085]',
+                  )}
+                >
+                  {filter.label}
+                </button>
               ))}
             </div>
-          )}
 
-          {/* Loaded books grid */}
-          {!isLoading && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                {filteredBooks.map((book, index) => (
-                  <BookCard
-                    key={book.id}
-                    book={book}
-                    index={index}
-                    isLiked={likedIds.has(book.id)}
-                    isLiking={likeItem.isPending}
-                    onLike={(e) => handleLike(book, e)}
-                    distance={getDistance(book)}
-                  />
+            <div className="flex gap-2 overflow-x-auto pb-1 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setGenreFilter('');
+                }}
+                className={cn(
+                  'shrink-0 rounded-full border px-4 py-2 text-[13px] font-medium transition',
+                  !genreFilter ? 'border-[#0b6b35] bg-[#0b6b35] text-white' : 'border-[#eaecf0] bg-white text-[#667085]',
+                )}
+              >
+                Все жанры
+              </button>
+              {GENRE_FILTERS.map((genre) => (
+                <button
+                  key={genre.value}
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setGenreFilter(genreFilter === genre.value ? '' : genre.value);
+                  }}
+                  className={cn(
+                    'shrink-0 rounded-full border px-4 py-2 text-[13px] font-medium transition',
+                    genreFilter === genre.value
+                      ? 'border-[#0b6b35] bg-[#0b6b35] text-white'
+                      : 'border-[#eaecf0] bg-white text-[#667085]',
+                  )}
+                >
+                  {genre.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 pt-4">
+          <div className="grid grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                navigate('/matches');
+              }}
+              className="rounded-2xl border border-[#dce7ff] bg-[#f4f7ff] p-3 text-left active:scale-[0.98]"
+            >
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[#4357d5]">
+                <Sparkles size={15} />
+                Матчи
+              </p>
+              <p className="mt-2 text-[24px] font-bold text-[#4357d5]">{pendingMatches}</p>
+            </button>
+
+            <div className="rounded-2xl border border-[#eaecf0] bg-white p-3 text-left">
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[#667085]">
+                <BookOpen size={15} />
+                Доступно
+              </p>
+              <p className="mt-2 text-[24px] font-bold text-[#101828]">{totalItems}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                navigate('/exchanges');
+              }}
+              className="rounded-2xl border border-[#e3efe7] bg-white p-3 text-left active:scale-[0.98]"
+            >
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[#667085]">
+                <ArrowUpRight size={15} className="text-[#0b6b35]" />
+                Обмены
+              </p>
+              <p className="mt-2 text-[24px] font-bold text-[#0b6b35]">{completedExchanges}</p>
+            </button>
+          </div>
+        </section>
+
+        <PullToRefresh onRefresh={handleRefresh}>
+          <section className="px-5 pt-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[20px] font-bold text-[#101828]">{getResultTitle(searchQuery, sortByDistance)}</h2>
+              <div className="flex items-center gap-2">
+                {coords && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setSortByDistance((v) => !v);
+                    }}
+                    className={cn(
+                      'flex h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-semibold transition',
+                      sortByDistance
+                        ? 'border-[#0b6b35] bg-[#eaf6ee] text-[#0b6b35]'
+                        : 'border-[#eaecf0] bg-white text-[#667085]',
+                    )}
+                  >
+                    <ArrowUpDown size={13} />
+                    {sortByDistance ? 'Ближе' : 'Новые'}
+                  </button>
+                )}
+                <span className="text-[14px] text-[#667085]">{filteredBooks.length} книг</span>
+              </div>
+            </div>
+
+            {isLoading && (
+              <div className="grid grid-cols-2 gap-4">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <SkeletonCard key={index} />
                 ))}
               </div>
+            )}
 
-              {/* Empty state */}
-              {filteredBooks.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <BookOpen size={48} className="text-text-muted mb-3" />
-                  <p className="text-[15px] font-medium text-text-secondary">No books found</p>
-                  <p className="text-[13px] text-text-muted mt-1">
-                    {searchQuery
-                      ? 'Try a different search term'
-                      : 'Be the first to add a book!'}
-                  </p>
-                  {!searchQuery && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={<Plus size={16} />}
-                      className="mt-4"
-                      onClick={() => navigate('/add-book')}
-                    >
-                      Add a Book
-                    </Button>
-                  )}
+            {!isLoading && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  {filteredBooks.map((book, index) => (
+                    <BookCard
+                      key={book.id}
+                      book={book}
+                      index={index}
+                      isLiked={likedIds.has(book.id)}
+                      isLiking={likeItem.isPending}
+                      onLike={(event) => handleLike(book, event)}
+                      distance={getDistance(book)}
+                    />
+                  ))}
                 </div>
-              )}
-            </>
-          )}
 
-          {/* Infinite scroll sentinel */}
-          <div ref={sentinelRef} className="h-4" />
+                {filteredBooks.length === 0 && (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-6 py-12 text-center">
+                    <BookOpen size={48} className="mb-3 text-[#98a2b3]" />
+                    <p className="text-[16px] font-semibold text-[#101828]">Книги не найдены</p>
+                    <p className="mt-1 text-[14px] text-[#667085]">
+                      {searchQuery ? 'Попробуйте другой запрос' : 'Добавьте первую книгу для обмена'}
+                    </p>
+                    {!searchQuery && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Plus size={16} />}
+                        className="mt-4"
+                        onClick={() => navigate('/add-book')}
+                      >
+                        Добавить книгу
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
-          {/* Loading more indicator */}
-          {isFetchingNextPage && (
-            <div className="flex justify-center py-4">
-              <Loader2 size={20} className="animate-spin text-accent" />
-            </div>
-          )}
-        </div>
-      </PullToRefresh>
+            <div ref={sentinelRef} className="h-4" />
+
+            {isFetchingNextPage && (
+              <div className="flex justify-center py-4">
+                <Loader2 size={22} className="animate-spin text-[#0b6b35]" />
+              </div>
+            )}
+          </section>
+        </PullToRefresh>
+
+        <button
+          type="button"
+          onClick={() => navigate('/add-book')}
+          className="fixed bottom-[96px] right-6 z-30 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#08642f] text-white shadow-[0_18px_35px_rgba(8,100,47,0.34)] active:scale-95"
+          aria-label="Добавить книгу"
+        >
+          <Plus size={38} strokeWidth={2.2} />
+        </button>
+      </div>
     </Shell>
   );
 };
