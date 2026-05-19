@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Repeat2, MessageCircle, User } from 'lucide-react';
+import { Heart, MessageCircle, Search, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerSelection } from '@/lib/telegram';
 import { useAppStore } from '@/stores/appStore';
@@ -7,10 +7,10 @@ import { useUnreadMatches } from '@/hooks/useMatches';
 import { useUnreadMessages } from '@/hooks/useChat';
 
 const tabs = [
-  { id: 'explore' as const, label: 'Explore', icon: Compass, path: '/' },
-  { id: 'matches' as const, label: 'Matches', icon: Repeat2, path: '/matches' },
-  { id: 'chat' as const, label: 'Chat', icon: MessageCircle, path: '/chat' },
-  { id: 'profile' as const, label: 'Profile', icon: User, path: '/profile' },
+  { id: 'explore' as const, label: 'Поиск', icon: Search, path: '/' },
+  { id: 'matches' as const, label: 'Матчи', icon: Heart, path: '/matches' },
+  { id: 'chat' as const, label: 'Чат', icon: MessageCircle, path: '/chat' },
+  { id: 'profile' as const, label: 'Профиль', icon: User, path: '/profile' },
 ];
 
 export const BottomNav = () => {
@@ -33,8 +33,8 @@ export const BottomNav = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border safe-area-bottom">
-      <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#eaecf0] bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.04)] backdrop-blur-xl safe-area-bottom">
+      <div className="mx-auto flex h-16 max-w-lg items-center justify-around">
         {tabs.map((tab) => {
           const active = isActive(tab.path);
           const unread = getUnread(tab.id);
@@ -49,29 +49,26 @@ export const BottomNav = () => {
                 navigate(tab.path);
               }}
               className={cn(
-                'flex flex-col items-center justify-center gap-0.5 flex-1 h-full',
+                'flex h-full flex-1 flex-col items-center justify-center gap-1',
                 'transition-colors duration-[var(--duration-fast)]',
                 'relative',
-                active ? 'text-accent' : 'text-text-muted',
+                active ? 'text-[#08642f]' : 'text-[#667085]',
               )}
             >
               <div className="relative">
-                <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
+                <Icon size={active ? 31 : 27} strokeWidth={active ? 2.2 : 1.8} />
                 {unread > 0 && (
-                  <div className="absolute -top-1 -right-1.5 w-4 h-4 bg-error rounded-full flex items-center justify-center">
+                  <div className="absolute -right-1.5 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#d92d20]">
                     <span className="text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
                   </div>
                 )}
               </div>
               <span className={cn(
-                'text-[10px] font-medium',
-                active ? 'text-accent' : 'text-text-muted',
+                'text-[12px] font-medium leading-none',
+                active ? 'text-[#08642f]' : 'text-[#667085]',
               )}>
                 {tab.label}
               </span>
-              {active && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-accent rounded-full" />
-              )}
             </button>
           );
         })}
