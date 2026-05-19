@@ -21,6 +21,7 @@ export const ISBNScanner = ({ onResult, onClose }: ISBNScannerProps) => {
   const rafRef = useRef<number>(0);
   const [status, setStatus] = useState<'scanning' | 'loading' | 'error'>('scanning');
   const [errorMsg, setErrorMsg] = useState('');
+  const [manualISBN, setManualISBN] = useState('');
 
   // Defined before useEffect to avoid declaration-before-use issue
   const stopStream = useCallback(() => {
@@ -33,6 +34,31 @@ export const ISBNScanner = ({ onResult, onClose }: ISBNScannerProps) => {
     stopStream();
     onClose();
   }, [stopStream, onClose]);
+
+  const lookupManualISBN = async () => {
+    const normalized = manualISBN.replace(/[^0-9Xx]/g, '');
+    if (normalized.length < 9) {
+      setStatus('error');
+      setErrorMsg('Введите ISBN с обложки книги');
+      return;
+    }
+
+    setStatus('loading');
+    try {
+      const book = await lookupISBN(normalized);
+      if (book) {
+        stopStream();
+        onResult(book);
+        return;
+      }
+
+      setStatus('error');
+      setErrorMsg(`ISBN ${manualISBN} не найден`);
+    } catch {
+      setStatus('error');
+      setErrorMsg('Не удалось проверить ISBN. Попробуйте ещё раз.');
+    }
+  };
 
   useEffect(() => {
     let stopped = false;
@@ -100,7 +126,7 @@ export const ISBNScanner = ({ onResult, onClose }: ISBNScannerProps) => {
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-10 pb-3">
-        <p className="text-white text-[16px] font-semibold">Scan ISBN barcode</p>
+          <p className="text-white text-[16px] font-semibold">Скан ISBN</p>
         <button
           onClick={handleClose}
           className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10"
@@ -145,15 +171,38 @@ export const ISBNScanner = ({ onResult, onClose }: ISBNScannerProps) => {
       <div className="px-5 py-4 pb-10">
         {status === 'scanning' && (
           <p className="text-white/70 text-[14px] text-center">
-            Point camera at the barcode on the back of the book
+            Наведите камеру на штрихкод книги
           </p>
         )}
         {status === 'loading' && (
-          <p className="text-white/70 text-[14px] text-center">Looking up book data...</p>
+          <p className="text-white/70 text-[14px] text-center">Ищу книгу...</p>
         )}
         {status === 'error' && (
           <p className="text-red-400 text-[14px] text-center">{errorMsg}</p>
         )}
+
+        <div className="mt-4 rounded-2xl bg-white/10 p-3">
+          <p className="mb-2 text-center text-[13px] text-white/70">
+            Если камера не работает, введите ISBN вручную
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={manualISBN}
+              onChange={(event) => setManualISBN(event.target.value)}
+              inputMode="numeric"
+              placeholder="978..."
+              className="h-11 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 text-[16px] text-white outline-none placeholder:text-white/35 focus:border-white/40"
+            />
+            <button
+              type="button"
+              onClick={lookupManualISBN}
+              disabled={status === 'loading'}
+              className="h-11 shrink-0 rounded-xl bg-white px-4 text-[14px] font-semibold text-[#08642f] disabled:opacity-60"
+            >
+              Найти
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

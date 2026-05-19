@@ -329,6 +329,13 @@ export const ExplorePage = () => {
             </button>
           </div>
 
+          {coords && (
+            <p className="mt-3 flex items-center gap-1.5 text-[12px] text-[#667085]">
+              <MapPin size={14} className="text-[#0b6b35]" />
+              Локация используется примерно, без показа точного адреса.
+            </p>
+          )}
+
           <div
             className={cn(
               'overflow-hidden transition-[max-height,opacity] duration-300 ease-out',

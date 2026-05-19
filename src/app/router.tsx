@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { createBrowserRouter, RouterProvider, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { getTelegram, getTelegramStartParam } from '@/lib/telegram';
 import { Loader2 } from 'lucide-react';
 import { OfflineBanner } from '@/components/ui';
 
@@ -27,20 +28,62 @@ const PageLoader = () => (
   </div>
 );
 
+const TelegramRouteFrame = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.pathname !== '/') return;
+
+    const startParam = getTelegramStartParam();
+    if (!startParam?.startsWith('book_')) return;
+
+    const bookId = startParam.slice('book_'.length);
+    if (bookId) {
+      navigate(`/book/${bookId}`, { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    const tg = getTelegram();
+    const backButton = tg?.BackButton;
+    if (!backButton) return;
+
+    if (location.pathname === '/') {
+      backButton.hide();
+      return;
+    }
+
+    const onBack = () => navigate(-1);
+    backButton.onClick(onBack);
+    backButton.show();
+
+    return () => {
+      backButton.offClick(onBack);
+    };
+  }, [location.pathname, navigate]);
+
+  return <>{children}</>;
+};
+
+const withTelegramFrame = (element: React.ReactNode) => (
+  <TelegramRouteFrame>{element}</TelegramRouteFrame>
+);
+
 const router = createBrowserRouter([
-  { path: '/',              element: <ExplorePage /> },
-  { path: '/matches',       element: <Suspense fallback={<PageLoader />}><MatchesPage /></Suspense> },
-  { path: '/chat',          element: <Suspense fallback={<PageLoader />}><ChatListPage /></Suspense> },
-  { path: '/chat/:id',      element: <Suspense fallback={<PageLoader />}><ChatRoomPage /></Suspense> },
-  { path: '/profile',       element: <Suspense fallback={<PageLoader />}><ProfilePage /></Suspense> },
-  { path: '/add-book',      element: <Suspense fallback={<PageLoader />}><AddBookPage /></Suspense> },
-  { path: '/book/:id',      element: <Suspense fallback={<PageLoader />}><BookDetailPage /></Suspense> },
-  { path: '/my-books',      element: <Suspense fallback={<PageLoader />}><MyBooksPage /></Suspense> },
-  { path: '/wishlist',      element: <Suspense fallback={<PageLoader />}><WishlistPage /></Suspense> },
-  { path: '/settings',      element: <Suspense fallback={<PageLoader />}><SettingsPage /></Suspense> },
-  { path: '/exchanges',     element: <Suspense fallback={<PageLoader />}><ExchangeHistoryPage /></Suspense> },
-  { path: '/exchange/:id',  element: <Suspense fallback={<PageLoader />}><ExchangeDetailPage /></Suspense> },
-  { path: '/review/:id',    element: <Suspense fallback={<PageLoader />}><ReviewPage /></Suspense> },
+  { path: '/',              element: withTelegramFrame(<ExplorePage />) },
+  { path: '/matches',       element: withTelegramFrame(<Suspense fallback={<PageLoader />}><MatchesPage /></Suspense>) },
+  { path: '/chat',          element: withTelegramFrame(<Suspense fallback={<PageLoader />}><ChatListPage /></Suspense>) },
+  { path: '/chat/:id',      element: withTelegramFrame(<Suspense fallback={<PageLoader />}><ChatRoomPage /></Suspense>) },
+  { path: '/profile',       element: withTelegramFrame(<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>) },
+  { path: '/add-book',      element: withTelegramFrame(<Suspense fallback={<PageLoader />}><AddBookPage /></Suspense>) },
+  { path: '/book/:id',      element: withTelegramFrame(<Suspense fallback={<PageLoader />}><BookDetailPage /></Suspense>) },
+  { path: '/my-books',      element: withTelegramFrame(<Suspense fallback={<PageLoader />}><MyBooksPage /></Suspense>) },
+  { path: '/wishlist',      element: withTelegramFrame(<Suspense fallback={<PageLoader />}><WishlistPage /></Suspense>) },
+  { path: '/settings',      element: withTelegramFrame(<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>) },
+  { path: '/exchanges',     element: withTelegramFrame(<Suspense fallback={<PageLoader />}><ExchangeHistoryPage /></Suspense>) },
+  { path: '/exchange/:id',  element: withTelegramFrame(<Suspense fallback={<PageLoader />}><ExchangeDetailPage /></Suspense>) },
+  { path: '/review/:id',    element: withTelegramFrame(<Suspense fallback={<PageLoader />}><ReviewPage /></Suspense>) },
 ]);
 
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {

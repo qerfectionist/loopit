@@ -14,6 +14,7 @@ interface TelegramWebAppUser {
 interface TelegramWebAppInitData {
   query_id?: string;
   user?: TelegramWebAppUser;
+  start_param?: string;
   auth_date: number;
   hash: string;
 }
@@ -32,6 +33,15 @@ interface TelegramWebAppThemeParams {
   section_header_text_color?: string;
   subtitle_text_color?: string;
   destructive_text_color?: string;
+  bottom_bar_bg_color?: string;
+  section_separator_color?: string;
+}
+
+interface TelegramSafeAreaInset {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
 }
 
 interface TelegramBackButton {
@@ -83,8 +93,11 @@ interface TelegramWebApp {
   isExpanded: boolean;
   viewportHeight: number;
   viewportStableHeight: number;
+  safeAreaInset?: TelegramSafeAreaInset;
+  contentSafeAreaInset?: TelegramSafeAreaInset;
   headerColor: string;
   backgroundColor: string;
+  bottomBarColor?: string;
   isClosingConfirmationEnabled: boolean;
   BackButton: TelegramBackButton;
   MainButton: TelegramMainButton;
@@ -92,9 +105,12 @@ interface TelegramWebApp {
   ready(): void;
   expand(): void;
   close(): void;
+  isVersionAtLeast(version: string): boolean;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;
   setBottomBarColor?(color: string): void;
+  onEvent(eventType: string, eventHandler: (...args: unknown[]) => void): void;
+  offEvent(eventType: string, eventHandler: (...args: unknown[]) => void): void;
   enableClosingConfirmation(): void;
   disableClosingConfirmation(): void;
   showPopup(params: {

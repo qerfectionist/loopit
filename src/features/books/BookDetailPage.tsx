@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  Ban,
   BookOpen,
   CalendarClock,
   ChevronRight,
+  Flag,
   Globe2,
   List,
   Loader2,
@@ -20,7 +22,15 @@ import { Shell } from '@/components/layout';
 import { Avatar, Button } from '@/components/ui';
 import { useItem, useItems } from '@/hooks/useItems';
 import { useLikeItem } from '@/hooks/useMatches';
-import { triggerHaptic, triggerNotification } from '@/lib/telegram';
+import { useBlockUser, useReportUser } from '@/hooks/useSafety';
+import {
+  createBookShareUrl,
+  shareToTelegram,
+  showAlert,
+  showConfirm,
+  triggerHaptic,
+  triggerNotification,
+} from '@/lib/telegram';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/stores/appStore';
 import type { Item } from '@/types';
@@ -123,6 +133,8 @@ export const BookDetailPage = () => {
   const currentUser = useAppStore((s) => s.currentUser);
   const { data: book, isLoading } = useItem(id);
   const likeItem = useLikeItem();
+  const blockUser = useBlockUser();
+  const reportUser = useReportUser();
   const [liked, setLiked] = useState(false);
 
   const genre = book ? getMetadataValue(book, 'genre') : null;
@@ -188,21 +200,62 @@ export const BookDetailPage = () => {
 
   const handleShare = async () => {
     triggerHaptic('light');
+    const url = createBookShareUrl(book.id);
+    const text = `${book.title}${book.author ? ` — ${book.author}` : ''}`;
 
     try {
       if (navigator.share) {
         await navigator.share({
           title: book.title,
-          text: book.author ?? undefined,
-          url: window.location.href,
+          text,
+          url,
         });
         return;
       }
 
-      await navigator.clipboard?.writeText(window.location.href);
-      triggerNotification('success');
+      shareToTelegram(url, text);
     } catch {
-      triggerNotification('warning');
+      try {
+        await navigator.clipboard?.writeText(url);
+        triggerNotification('success');
+      } catch {
+        triggerNotification('warning');
+      }
+    }
+  };
+
+  const handleReportOwner = async () => {
+    if (!owner || reportUser.isPending) return;
+
+    const confirmed = await showConfirm('Пожаловаться на эту книгу и пользователя?');
+    if (!confirmed) return;
+
+    try {
+      await reportUser.mutateAsync({
+        reportedId: owner.id,
+        reason: 'suspicious_item',
+        description: `Report from book page: ${book.title}`,
+        relatedItemId: book.id,
+      });
+      triggerNotification('success');
+      await showAlert('Жалоба отправлена. Мы проверим её.');
+    } catch {
+      triggerNotification('error');
+    }
+  };
+
+  const handleBlockOwner = async () => {
+    if (!owner || blockUser.isPending) return;
+
+    const confirmed = await showConfirm('Заблокировать пользователя? Его книги и сообщения будут скрыты.');
+    if (!confirmed) return;
+
+    try {
+      await blockUser.mutateAsync(owner.id);
+      triggerNotification('success');
+      navigate('/');
+    } catch {
+      triggerNotification('error');
     }
   };
 
@@ -307,6 +360,41 @@ export const BookDetailPage = () => {
               </div>
             </div>
           </section>
+
+          {!isOwner && owner && (
+            <section className="mt-4 rounded-2xl border border-[#e6e8ed] bg-[#f8fafc] p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={22} className="mt-0.5 shrink-0 text-[#0b6b35]" />
+                <div>
+                  <h2 className="text-[16px] font-bold text-[#101828]">Безопасный обмен</h2>
+                  <p className="mt-1 text-[14px] leading-5 text-[#667085]">
+                    Встречайтесь в людных местах, не отправляйте предоплату незнакомым людям и сообщайте о подозрительных объявлениях.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleReportOwner}
+                  disabled={reportUser.isPending}
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d0d5dd] bg-white text-[14px] font-semibold text-[#344054] disabled:opacity-60"
+                >
+                  <Flag size={17} />
+                  Жалоба
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBlockOwner}
+                  disabled={blockUser.isPending}
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#fed7d7] bg-white text-[14px] font-semibold text-[#b42318] disabled:opacity-60"
+                >
+                  <Ban size={17} />
+                  Блок
+                </button>
+              </div>
+            </section>
+          )}
 
           {!isOwner && (
             <section className="mt-5 space-y-3">
