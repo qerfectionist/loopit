@@ -1,48 +1,83 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  BookOpen,
+  Camera,
+  Check,
+  DollarSign,
+  Loader2,
+  Plus,
+  Repeat2,
+  ScanLine,
+  X,
+} from 'lucide-react';
 import { compressImage } from '@/lib/compressImage';
 import { isBarcodeDetectorSupported } from '@/lib/isbn';
 import { ISBNScanner } from '@/components/ISBNScanner';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Plus, X, Loader2, ScanLine } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Shell } from '@/components/layout';
-import { Button, Input } from '@/components/ui';
 import { triggerHaptic, triggerNotification } from '@/lib/telegram';
 import { useAppStore } from '@/stores/appStore';
 import { useCreateItem, useUploadImage } from '@/hooks/useItems';
-import type { ItemCondition, ExchangeType } from '@/types';
+import type { ExchangeType, ItemCondition } from '@/types';
 
-const CONDITIONS: { value: ItemCondition; label: string; emoji: string }[] = [
-  { value: 'new', label: 'New', emoji: '✨' },
-  { value: 'like_new', label: 'Like New', emoji: '📗' },
-  { value: 'good', label: 'Good', emoji: '📘' },
-  { value: 'fair', label: 'Fair', emoji: '📙' },
+const CONDITIONS: { value: ItemCondition; label: string; accent: string }[] = [
+  { value: 'new', label: 'Новое', accent: 'bg-emerald-500' },
+  { value: 'like_new', label: 'Как новое', accent: 'bg-lime-500' },
+  { value: 'good', label: 'Хорошее', accent: 'bg-sky-500' },
+  { value: 'fair', label: 'Нормальное', accent: 'bg-orange-500' },
 ];
 
-const EXCHANGE_TYPES: { value: ExchangeType; label: string; desc: string }[] = [
-  { value: 'exchange', label: 'Exchange Only', desc: 'Trade for another book' },
-  { value: 'sell', label: 'Sell', desc: 'Set a price' },
-  { value: 'both', label: 'Either', desc: 'Trade or sell' },
+const EXCHANGE_TYPES: {
+  value: ExchangeType;
+  label: string;
+  desc: string;
+  icon: typeof Repeat2;
+}[] = [
+  {
+    value: 'exchange',
+    label: 'Только обмен',
+    desc: 'Обменять на другую книгу',
+    icon: Repeat2,
+  },
+  {
+    value: 'sell',
+    label: 'Продажа',
+    desc: 'Указать цену',
+    icon: DollarSign,
+  },
+  {
+    value: 'both',
+    label: 'Обмен или продажа',
+    desc: 'Подходит оба варианта',
+    icon: BookOpen,
+  },
 ];
 
 const GENRES = [
-  { value: 'fiction', label: '📖 Fiction' },
-  { value: 'non-fiction', label: '📚 Non-Fiction' },
-  { value: 'sci-fi', label: '🚀 Sci-Fi' },
-  { value: 'fantasy', label: '🧙 Fantasy' },
-  { value: 'mystery', label: '🔍 Mystery' },
-  { value: 'romance', label: '💕 Romance' },
-  { value: 'thriller', label: '😱 Thriller' },
-  { value: 'biography', label: '👤 Biography' },
-  { value: 'history', label: '🏛️ History' },
-  { value: 'science', label: '🔬 Science' },
-  { value: 'self-help', label: '💡 Self-Help' },
-  { value: 'children', label: '🧒 Children' },
+  { value: 'fiction', label: 'Художественная' },
+  { value: 'non-fiction', label: 'Нон-фикшн' },
+  { value: 'sci-fi', label: 'Фантастика' },
+  { value: 'fantasy', label: 'Фэнтези' },
+  { value: 'mystery', label: 'Детектив' },
+  { value: 'romance', label: 'Романтика' },
+  { value: 'thriller', label: 'Триллер' },
+  { value: 'biography', label: 'Биография' },
+  { value: 'history', label: 'История' },
+  { value: 'science', label: 'Наука' },
+  { value: 'self-help', label: 'Саморазвитие' },
+  { value: 'children', label: 'Детская' },
 ] as const;
 
-export type BookGenre = typeof GENRES[number]['value'];
+export type BookGenre = (typeof GENRES)[number]['value'];
 
 const MAX_IMAGES = 3;
+const fieldClass =
+  'w-full rounded-[22px] border border-[#e4e7ec] bg-[#f8fafc] px-4 text-[16px] text-[#101828] outline-none transition-colors placeholder:text-[#98a2b3] focus:border-[#0b6b31] focus:bg-white';
+
+const FieldLabel = ({ children }: { children: React.ReactNode }) => (
+  <label className="mb-2 block text-[14px] font-semibold text-[#667085]">{children}</label>
+);
 
 export const AddBookPage = () => {
   const navigate = useNavigate();
@@ -58,7 +93,6 @@ export const AddBookPage = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isbn, setIsbn] = useState('');
 
-  // Image state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -82,7 +116,6 @@ export const AddBookPage = () => {
     const remaining = MAX_IMAGES - imageFiles.length;
     const newFiles = files.slice(0, remaining);
 
-    // Generate previews immediately from originals (fast)
     newFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -91,14 +124,12 @@ export const AddBookPage = () => {
       reader.readAsDataURL(file);
     });
 
-    // Compress before storing — runs in background via WebWorker
     setUploadingImage(true);
     const compressed = await Promise.all(newFiles.map(compressImage));
     setUploadingImage(false);
 
     setImageFiles((prev) => [...prev, ...compressed]);
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -115,7 +146,6 @@ export const AddBookPage = () => {
     setLoading(true);
     triggerHaptic('medium');
 
-    // 1. Upload images if any
     let imageUrls: string[] = [];
     if (imageFiles.length > 0) {
       setUploadingImage(true);
@@ -127,18 +157,17 @@ export const AddBookPage = () => {
         imageUrls = await Promise.all(uploadPromises);
         setUploadError(null);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Image upload failed';
+        const msg = err instanceof Error ? err.message : 'Не удалось загрузить фото';
         console.error('[AddBook] Image upload failed:', err);
         setUploadError(msg);
         triggerNotification('error');
         setUploadingImage(false);
         setLoading(false);
-        return; // abort — don't create item with broken images
+        return;
       }
       setUploadingImage(false);
     }
 
-    // 2. Create item
     createItemMutation.mutate(
       {
         user_id: currentUser!.id,
@@ -149,7 +178,10 @@ export const AddBookPage = () => {
         isbn: isbn || undefined,
         condition,
         exchange_type: exchangeType,
-        price: (exchangeType === 'sell' || exchangeType === 'both') && price ? parseFloat(price) : undefined,
+        price:
+          (exchangeType === 'sell' || exchangeType === 'both') && price
+            ? parseFloat(price)
+            : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
         metadata: genre ? { genre } : undefined,
       },
@@ -162,7 +194,7 @@ export const AddBookPage = () => {
         onError: () => {
           triggerNotification('error');
           setLoading(false);
-        }
+        },
       }
     );
   };
@@ -177,8 +209,7 @@ export const AddBookPage = () => {
   };
 
   return (
-    <Shell hideNav>
-      {/* ISBN Scanner overlay */}
+    <Shell hideNav className="bg-white text-[#101828]">
       {showScanner && (
         <ISBNScanner
           onResult={handleScanResult}
@@ -186,194 +217,257 @@ export const AddBookPage = () => {
         />
       )}
 
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-border">
-        <button
-          onClick={() => { triggerHaptic('light'); navigate(-1); }}
-          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-bg-tertiary transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-[18px] font-semibold">Add Book</h1>
-      </div>
+      <div className="mx-auto min-h-[var(--loopit-viewport-stable-height)] w-full max-w-[480px] bg-white">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#f2f4f7] bg-white/95 px-5 py-3 backdrop-blur">
+          <button
+            aria-label="Назад"
+            onClick={() => {
+              triggerHaptic('light');
+              navigate(-1);
+            }}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-[#101828] transition-colors hover:bg-[#f2f4f7]"
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <div>
+            <h1 className="text-[19px] font-bold leading-tight">Добавить книгу</h1>
+            <p className="text-[13px] text-[#667085]">Заполните карточку для обмена</p>
+          </div>
+        </header>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-5 py-5 space-y-5"
-      >
-        {/* Photo upload */}
-        <div>
-          <label className="text-[13px] font-medium text-text-secondary mb-2 block">
-            Photos ({imageFiles.length}/{MAX_IMAGES})
-          </label>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            <AnimatePresence>
+        <main className="space-y-6 px-5 pb-36 pt-5">
+          <section>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <FieldLabel>Фото книги</FieldLabel>
+                <p className="text-[13px] text-[#98a2b3]">
+                  До {MAX_IMAGES} фото, лучше обложку крупно
+                </p>
+              </div>
+              <span className="text-[13px] font-semibold text-[#667085]">
+                {imageFiles.length}/{MAX_IMAGES}
+              </span>
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto pb-1">
               {imagePreviews.map((preview, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className="relative flex-shrink-0"
-                >
+                <div key={`${preview}-${i}`} className="relative shrink-0">
                   <img
                     src={preview}
-                    alt={`Preview ${i + 1}`}
-                    className="w-20 h-20 rounded-xl object-cover border border-border"
+                    alt={`Фото книги ${i + 1}`}
+                    className="h-24 w-24 rounded-[20px] border border-[#e4e7ec] object-cover"
                   />
                   <button
+                    aria-label="Удалить фото"
                     onClick={() => handleRemoveImage(i)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-error text-white rounded-full flex items-center justify-center shadow-md"
+                    className="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] text-white shadow-lg"
                   >
-                    <X size={12} />
+                    <X size={15} />
                   </button>
-                </motion.div>
+                </div>
               ))}
-            </AnimatePresence>
-            {imageFiles.length < MAX_IMAGES && (
-              <button
-                onClick={handleAddImage}
-                className="w-20 h-20 rounded-xl border-2 border-dashed border-border hover:border-accent flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
-              >
-                <Camera size={20} className="text-text-muted" />
-                <span className="text-[10px] text-text-muted">Add</span>
-              </button>
+
+              {imageFiles.length < MAX_IMAGES && (
+                <button
+                  onClick={handleAddImage}
+                  className="flex h-24 w-24 shrink-0 flex-col items-center justify-center gap-2 rounded-[20px] border-2 border-dashed border-[#101828] bg-white text-[#344054] transition-colors hover:bg-[#f8fafc]"
+                >
+                  <Camera size={23} />
+                  <span className="text-[13px] font-semibold">Добавить</span>
+                </button>
+              )}
+            </div>
+
+            {uploadError && (
+              <p className="mt-2 text-[13px] font-medium text-[#b42318]">{uploadError}</p>
             )}
-          </div>
-          {uploadError && (
-            <p className="text-[12px] text-error mt-1">{uploadError}</p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <FieldLabel>Название</FieldLabel>
+                {canScan && (
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setShowScanner(true);
+                    }}
+                    className="flex items-center gap-1.5 rounded-full border border-[#d0d5dd] px-3 py-1.5 text-[13px] font-semibold text-[#0b6b31]"
+                  >
+                    <ScanLine size={15} />
+                    ISBN
+                  </button>
+                )}
+              </div>
+              <input
+                placeholder="Название книги"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={`${fieldClass} h-14`}
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Автор</FieldLabel>
+              <input
+                placeholder="Имя автора"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                className={`${fieldClass} h-14`}
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Описание</FieldLabel>
+              <textarea
+                placeholder="Расскажите о книге, состоянии и заметках"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                className={`${fieldClass} min-h-[116px] resize-none py-4`}
+              />
+            </div>
+          </section>
+
+          <section>
+            <FieldLabel>
+              Жанр <span className="font-medium text-[#98a2b3]">(необязательно)</span>
+            </FieldLabel>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {GENRES.map((g) => {
+                const selected = genre === g.value;
+                return (
+                  <button
+                    key={g.value}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setGenre(selected ? '' : g.value);
+                    }}
+                    className={`shrink-0 rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors ${
+                      selected
+                        ? 'border-[#0b6b31] bg-[#eaf6ee] text-[#0b6b31]'
+                        : 'border-[#e4e7ec] bg-white text-[#475467]'
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section>
+            <FieldLabel>Состояние</FieldLabel>
+            <div className="grid grid-cols-4 gap-2">
+              {CONDITIONS.map((c) => {
+                const selected = condition === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setCondition(c.value);
+                    }}
+                    className={`flex min-h-[82px] flex-col items-center justify-center gap-2 rounded-[20px] border px-2 text-center transition-colors ${
+                      selected
+                        ? 'border-[#0b6b31] bg-[#eaf6ee] text-[#0b6b31]'
+                        : 'border-[#e4e7ec] bg-white text-[#475467]'
+                    }`}
+                  >
+                    <span className={`h-4 w-4 rounded-[4px] ${c.accent}`} />
+                    <span className="text-[12px] font-bold leading-tight">{c.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section>
+            <FieldLabel>Тип объявления</FieldLabel>
+            <div className="space-y-3">
+              {EXCHANGE_TYPES.map((type) => {
+                const selected = exchangeType === type.value;
+                const Icon = type.icon;
+
+                return (
+                  <button
+                    key={type.value}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setExchangeType(type.value);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-[22px] border p-4 text-left transition-colors ${
+                      selected
+                        ? 'border-[#0b6b31] bg-[#eaf6ee]'
+                        : 'border-[#e4e7ec] bg-white'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                        selected ? 'bg-[#0b6b31] text-white' : 'bg-[#f2f4f7] text-[#667085]'
+                      }`}
+                    >
+                      <Icon size={20} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[16px] font-bold text-[#101828]">
+                        {type.label}
+                      </span>
+                      <span className="block text-[14px] text-[#667085]">{type.desc}</span>
+                    </span>
+                    {selected && <Check size={20} className="text-[#0b6b31]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {(exchangeType === 'sell' || exchangeType === 'both') && (
+            <section>
+              <FieldLabel>Цена</FieldLabel>
+              <input
+                placeholder="0"
+                type="number"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className={`${fieldClass} h-14`}
+              />
+            </section>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
+        </main>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[13px] font-medium text-text-secondary">Title</label>
-            {canScan && (
-              <button
-                onClick={() => { triggerHaptic('light'); setShowScanner(true); }}
-                className="flex items-center gap-1 text-accent text-[13px] font-medium"
-              >
-                <ScanLine size={14} />
-                Scan ISBN
-              </button>
-            )}
-          </div>
-          <Input placeholder="Book title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        </div>
-        <Input label="Author" placeholder="Author name" value={author} onChange={(e) => setAuthor(e.target.value)} />
-
-
-        {/* Description */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[13px] font-medium text-text-secondary">Description</label>
-          <textarea
-            placeholder="Tell others about this book..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="w-full px-3.5 py-3 rounded-xl text-[15px] bg-bg-tertiary text-text-primary placeholder-text-muted border border-border focus:border-accent outline-none transition-colors resize-none"
-          />
-        </div>
-
-        {/* Genre selector */}
-        <div>
-          <label className="text-[13px] font-medium text-text-secondary mb-2 block">
-            Genre <span className="text-text-muted">(optional)</span>
-          </label>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {GENRES.map((g) => (
-              <button
-                key={g.value}
-                onClick={() => { triggerHaptic('light'); setGenre(genre === g.value ? '' : g.value); }}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap border transition-colors flex-shrink-0 ${
-                  genre === g.value
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                }`}
-              >
-                {g.label}
-              </button>
-            ))}
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#f2f4f7] bg-white/95 backdrop-blur">
+          <div className="mx-auto w-full max-w-[480px] px-5 pb-[calc(var(--loopit-safe-bottom)+16px)] pt-3">
+            <button
+              disabled={!canSubmit || loading}
+              onClick={handleSubmit}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-[#0b6b31] text-[17px] font-bold text-white shadow-[0_12px_30px_rgba(11,107,49,0.22)] transition-opacity disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {loading || uploadingImage ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Plus size={21} />
+              )}
+              {uploadingImage
+                ? 'Загружаю фото...'
+                : loading
+                  ? 'Добавляю...'
+                  : 'Добавить книгу'}
+            </button>
           </div>
         </div>
-
-        {/* Condition selector */}
-        <div>
-          <label className="text-[13px] font-medium text-text-secondary mb-2 block">Condition</label>
-          <div className="grid grid-cols-4 gap-2">
-            {CONDITIONS.map((c) => (
-              <button
-                key={c.value}
-                onClick={() => { triggerHaptic('light'); setCondition(c.value); }}
-                className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all ${
-                  condition === c.value
-                    ? 'border-accent bg-accent-soft text-accent'
-                    : 'border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
-                }`}
-              >
-                <span className="text-[16px]">{c.emoji}</span>
-                <span className="text-[11px] font-medium">{c.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Exchange type */}
-        <div>
-          <label className="text-[13px] font-medium text-text-secondary mb-2 block">Exchange Type</label>
-          <div className="space-y-2">
-            {EXCHANGE_TYPES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => { triggerHaptic('light'); setExchangeType(t.value); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
-                  exchangeType === t.value
-                    ? 'border-accent bg-accent-soft'
-                    : 'border-border bg-bg-secondary hover:bg-bg-tertiary'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  exchangeType === t.value ? 'border-accent' : 'border-text-muted'
-                }`}>
-                  {exchangeType === t.value && <div className="w-2.5 h-2.5 rounded-full bg-accent" />}
-                </div>
-                <div>
-                  <p className="text-[14px] font-medium">{t.label}</p>
-                  <p className="text-[12px] text-text-muted">{t.desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {(exchangeType === 'sell' || exchangeType === 'both') && (
-          <Input label="Price" placeholder="0.00" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
-        )}
-
-        {/* Submit */}
-        <div className="pt-2 pb-8">
-          <Button
-            variant="primary"
-            fullWidth
-            size="lg"
-            loading={loading}
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-            icon={loading && uploadingImage ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-          >
-            {loading && uploadingImage ? 'Uploading photos...' : loading ? 'Adding...' : 'Add Book'}
-          </Button>
-        </div>
-      </motion.div>
+      </div>
     </Shell>
   );
 };
